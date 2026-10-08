@@ -11,7 +11,8 @@ function inline(s: string): string {
   out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text: string, href: string) => {
     const h = href.replace(/&amp;/g, "&");
-    if (!/^(https?:\/\/|\/)/.test(h)) return text;
+    // "/path" is internal; "//host" is protocol-relative and therefore external (review L10).
+    if (!/^(https?:\/\/|\/(?!\/))/.test(h)) return text;
     const external = h.startsWith("http");
     return `<a href="${esc(h)}"${external ? ' rel="noopener nofollow" target="_blank"' : ""}>${text}</a>`;
   });

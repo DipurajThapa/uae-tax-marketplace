@@ -8,9 +8,9 @@ All runs on 2026-10-08 in the build sandbox unless noted. "CI" means GitHub Acti
 | Typecheck | pass | `npm run typecheck` |
 | ESLint | pass | `npm run lint` |
 | Copy lint | pass (68 files); planted "guaranteed" fails with file:line (exit 1) | `npm run lint:copy` |
-| Unit + integration (real Postgres) | **77 / 77 pass**, also with `ALLOW_SYNTHETIC_DATA=true` in the environment (the CI condition) | `npm test` |
+| Unit + integration (real Postgres) | **81 / 81 pass**, also with `ALLOW_SYNTHETIC_DATA=true` in the environment (the CI condition) | `npm test` |
 | Production build | pass, 50 routes | `npm run build` |
-| Browser E2E (Playwright, Chromium, production build) | **10 / 10 pass** | `npm run test:e2e` |
+| Browser E2E (Playwright, Chromium, production build) | **12 / 12 pass** (adds L3 signed messages, L4 logout) | `npm run test:e2e` |
 | Restore drill | pass: row counts equal; audit trigger survives restore | `scripts/restore-drill.sh` |
 | Response time (warm, local) | ~20 ms per page; HTML 16–32 KB | curl against `next start` |
 
@@ -31,9 +31,12 @@ All runs on 2026-10-08 in the build sandbox unless noted. "CI" means GitHub Acti
 ## Independent adversarial review
 A separate reviewer agent tried to invalidate the release-candidate claim. It found 0 Critical, 5 High, 11 Medium and 11 Low issues.
 - Fixed with tests: H1–H5, M1, M2, M3, M4, M5, M6, M7, M8, M11, L1, L7, L11.
-- Open (tracked in TASK_BACKLOG "Review follow-ups"): M9, M10, L2–L6, L8–L10.
+- Follow-ups (after PR #1 merged): M9, L2–L6, L8, L9 and L10a–c fixed with tests. Open: M10 (blocked on counsel), L10d (nonce CSP, ENG-15).
 
-## CI history (PR #1)
+## CI history
+- PR #1 merged into `main` as `a61622b` with CI green.
+
+### PR #1
 - Runs 1–3 failed: the job-level `ALLOW_SYNTHETIC_DATA=true` leaked into the visibility test through `??=` in the test setup. Fixed by forcing test env values; the health check now targets the real DB; the E2E step creates its DB.
 
 ## Not verified (honest gaps)

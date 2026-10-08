@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql, desc } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import { plans, subscriptions, leadCharges, enquiryRecipients, organizations } from "@/db/schema";
-import { audit, type Actor } from "./audit";
+import { audit, SYSTEM as SYSTEM_ACTOR, type Actor } from "./audit";
 
 /**
  * Commercial model. Prices are owner-adjustable ASSUMPTIONS (DECISIONS.md D-007),
@@ -180,6 +180,31 @@ export const testBillingProvider: BillingProvider = {
 };
 
 export const billing = (): BillingProvider => testBillingProvider;
+
+/**
+ * Test-mode renewal (review L2): an active test subscription whose period has ended rolls over to the
+ * next period instead of silently falling back to the free plan. Canceled and past_due ones do not renew.
+ * A live provider would drive this from its own webhooks instead.
+ */
+export async function renewTestSubscriptions(db: DB, now: Date): Promise<number> {
+  const due = await db
+    .select()
+    .from(subscriptions)
+    .where(and(eq(subscriptions.billingProvider, "test"), inArray(subscriptions.status, [...ACTIVE]), sql`${subscriptions.currentPeriodEnd} <= ${now}`));
+  for (const sub of due) {
+    let start = sub.currentPeriodEnd;
+    let end = addMonths(start, 1);
+    while (end <= now) {
+      start = end;
+      end = addMonths(start, 1);
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(subscriptions).set({ currentPeriodStart: start, currentPeriodEnd: end }).where(eq(subscriptions.id, sub.id));
+      await audit(tx, SYSTEM_ACTOR, "subscription.renewed", "subscription", sub.id, { periodEnd: end.toISOString(), provider: "test" });
+    });
+  }
+  return due.length;
+}
 
 /** Monthly revenue view for admin reporting (test-mode figures, never presented as real revenue). */
 export async function revenueSummary(db: DB, month: string) {

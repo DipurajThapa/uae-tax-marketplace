@@ -15,6 +15,12 @@ async function signIn(page: Page, email: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/login"));
 }
 
+async function signOut(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+}
+
 async function answerRadio(page: Page, legend: string, option: string) {
   await page.getByRole("group", { name: legend }).getByLabel(option, { exact: true }).check();
 }
@@ -96,7 +102,7 @@ test("3. the provider receives and accepts that enquiry; another provider cannot
   await page.goto("/provider/enquiries");
   await expect(page.getByText("Erin Example")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /ENQ-/ })).toHaveCount(0);
-  await page.goto("/logout");
+  await signOut(page);
 
   await signIn(page, "agency@e2e.invalid");
   await expect(page).toHaveURL(/\/provider/);
@@ -108,7 +114,7 @@ test("3. the provider receives and accepts that enquiry; another provider cannot
   await expect(page.getByText("erin@buyer.example")).toBeVisible();
   await page.getByRole("button", { name: "Accept enquiry" }).click();
   await expect(page.getByText(/accepted/i).first()).toBeVisible();
-  await page.goto("/logout");
+  await signOut(page);
 
   // Scenario 9: a different provider gets a 404 for the same enquiry URL.
   await signIn(page, "books@e2e.invalid");
@@ -139,6 +145,19 @@ test("4/5. a business claims its listing and an administrator approves it", asyn
   await expect(page.getByRole("link", { name: "Start an enquiry" })).toBeVisible();
 });
 
+test("L4: a GET to /logout does not sign the user out", async ({ page }) => {
+  await signIn(page, "agency@e2e.invalid");
+  await page.goto("/logout");
+  await page.goto("/provider");
+  await expect(page).toHaveURL(/\/provider$/);
+  await signOut(page);
+});
+
+test("L3: a crafted message in the URL is not shown", async ({ page }) => {
+  await page.goto("/login?error=" + encodeURIComponent("Your account is locked. Call +971 50 000 0000"));
+  await expect(page.getByText("Your account is locked")).toHaveCount(0);
+});
+
 test("9. unauthorised users cannot reach privileged areas", async ({ page }) => {
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/login/);
@@ -147,7 +166,7 @@ test("9. unauthorised users cannot reach privileged areas", async ({ page }) => 
   await signIn(page, "agency@e2e.invalid");
   await page.goto("/admin/billing");
   await expect(page).toHaveURL(/\/forbidden/);
-  await page.goto("/logout");
+  await signOut(page);
   await signIn(page, "reviewer@e2e.invalid");
   await page.goto("/admin/billing");
   await expect(page).toHaveURL(/\/forbidden/); // admin-only section

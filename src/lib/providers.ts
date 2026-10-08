@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, ilike, or, lte, gt, asc, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql, ilike, or, lte, gt, asc, isNotNull, type SQL } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import {
   organizations,
@@ -176,7 +176,7 @@ export async function loadCandidates(db: DB, serviceCodes: string[], now: Date):
   const activeUsers = await db
     .select({ org: users.organizationId })
     .from(users)
-    .where(and(inArray(users.organizationId, ids), eq(users.role, "provider"), eq(users.disabled, false)));
+    .where(and(inArray(users.organizationId, ids), eq(users.role, "provider"), eq(users.disabled, false), isNotNull(users.emailVerifiedAt)));
   const activeUserOrgs = new Set(activeUsers.map((u) => u.org));
   return orgs.map((o) => {
     const myPeople = new Set(people.filter((p) => p.org === o.id).map((p) => p.id));

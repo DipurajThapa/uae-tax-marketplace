@@ -10,7 +10,7 @@ export default async function Sent({ searchParams }: { searchParams: Promise<{ r
       <h1>{duplicate ? "You already sent this enquiry" : "Your enquiry has been sent"}</h1>
       {safeRef && <p>Reference: <strong>{safeRef}</strong></p>}
       {duplicate ? (
-        <p>We found the same enquiry from you to the same providers in the last few days, so we did not send it again.</p>
+        <p>The same enquiry to the same providers was sent in the last few days, so we did not send it again. Check your inbox for the original confirmation, which has the link to manage it.</p>
       ) : (
         <>
           <p>We have sent your enquiry only to the providers you chose. They will contact you directly.</p>

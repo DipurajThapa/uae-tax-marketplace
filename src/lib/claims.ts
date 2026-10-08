@@ -56,10 +56,39 @@ export async function submitClaim(db: DB, input: z.input<typeof claimSchema>, ct
   return { ok: true as const, id };
 }
 
-async function issuePasswordToken(tx: Pick<DB, "insert">, userId: string, now: Date, hours = 72): Promise<string> {
+async function issuePasswordToken(tx: Pick<DB, "insert">, userId: string, now: Date, hours = 72, purpose: "set_password" | "verify_email" = "set_password"): Promise<string> {
   const token = randomToken();
-  await tx.insert(passwordTokens).values({ id: sha256(token), userId, expiresAt: new Date(now.getTime() + hours * 3600_000) });
+  await tx.insert(passwordTokens).values({ id: sha256(token), purpose, userId, expiresAt: new Date(now.getTime() + hours * 3600_000) });
   return token;
+}
+
+/** Sends (or re-sends) an email-confirmation link. Rate-limited per user. */
+export async function requestEmailVerification(db: DB, userId: string, now = new Date()): Promise<{ ok: boolean }> {
+  const [u] = await db.select().from(users).where(eq(users.id, userId));
+  if (!u || u.disabled || u.emailVerifiedAt) return { ok: false };
+  const rl = await rateLimit(db, "verify_email", userId, 5, 3600, now);
+  if (!rl.allowed) return { ok: false };
+  await db.transaction(async (tx) => {
+    const token = await issuePasswordToken(tx, u.id, now, 72, "verify_email");
+    await enqueue(tx, { to: u.email, template: "verify_email", payload: { setPasswordToken: token } }, now);
+  });
+  return { ok: true };
+}
+
+/** Confirms the inbox (review M9). Single use; only verify_email tokens are accepted. */
+export async function consumeEmailVerification(db: DB, token: string, now = new Date()): Promise<{ ok: boolean }> {
+  return db.transaction(async (tx) => {
+    const [t] = await tx
+      .select()
+      .from(passwordTokens)
+      .where(and(eq(passwordTokens.id, sha256(token)), eq(passwordTokens.purpose, "verify_email"), isNull(passwordTokens.usedAt), gt(passwordTokens.expiresAt, now)))
+      .for("update");
+    if (!t) return { ok: false };
+    await tx.update(users).set({ emailVerifiedAt: now }).where(and(eq(users.id, t.userId), isNull(users.emailVerifiedAt)));
+    await tx.update(passwordTokens).set({ usedAt: now }).where(eq(passwordTokens.id, t.id));
+    await audit(tx, userActor(t.userId), "user.email_verified", "user", t.userId);
+    return { ok: true };
+  });
 }
 
 /**
@@ -127,10 +156,11 @@ export async function consumePasswordToken(db: DB, token: string, newPassword: s
     const [t] = await tx
       .select()
       .from(passwordTokens)
-      .where(and(eq(passwordTokens.id, sha256(token)), isNull(passwordTokens.usedAt), gt(passwordTokens.expiresAt, now)))
+      .where(and(eq(passwordTokens.id, sha256(token)), eq(passwordTokens.purpose, "set_password"), isNull(passwordTokens.usedAt), gt(passwordTokens.expiresAt, now)))
       .for("update");
     if (!t) return { ok: false as const, error: "This link is invalid or has expired" };
-    await tx.update(users).set({ passwordHash: await hashPassword(newPassword) }).where(eq(users.id, t.userId));
+    // The link was sent to this inbox, so using it also proves control of the email address.
+    await tx.update(users).set({ passwordHash: await hashPassword(newPassword), emailVerifiedAt: now }).where(eq(users.id, t.userId));
     await tx.update(passwordTokens).set({ usedAt: now }).where(eq(passwordTokens.id, t.id));
     await tx.delete(sessions).where(eq(sessions.userId, t.userId));
     await audit(tx, userActor(t.userId), "user.password_set", "user", t.userId);
@@ -178,11 +208,21 @@ export async function registerProvider(db: DB, input: unknown, ctx: { ip: string
   if (!rl.allowed) return { ok: false as const, errors: { form: "Too many attempts. Try again later." } };
   const email = normalizeEmail(r.contactEmail);
   const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
-  if (taken) return { ok: false as const, errors: { contactEmail: "An account already exists for this email. Sign in instead." } };
+  // Same wording whether or not the account exists elsewhere (review L5).
+  if (taken) return { ok: false as const, errors: { contactEmail: "We could not use this email for a new account. If you already have one, sign in or reset your password." } };
 
   const normalized = normalizeName(r.legalName);
-  const [dupe] = await db.select({ id: organizations.id, slug: organizations.slug }).from(organizations).where(eq(organizations.normalizedName, normalized));
-  if (dupe) return { ok: false as const, errors: { legalName: "This business already has a listing. Use “Claim this listing” on its profile instead." }, existingSlug: dupe.slug };
+  const [dupe] = await db
+    .select({ id: organizations.id, slug: organizations.slug, listingStatus: organizations.listingStatus })
+    .from(organizations)
+    .where(eq(organizations.normalizedName, normalized));
+  // Only a published listing's address is revealed; drafts stay private (review L5).
+  if (dupe)
+    return {
+      ok: false as const,
+      errors: { legalName: "A listing with this name may already exist. Search the directory for it and use “Claim this listing”, or contact support." },
+      existingSlug: dupe.listingStatus === "published" ? dupe.slug : undefined,
+    };
 
   const [source] = await db.select().from(dataSources).where(eq(dataSources.kind, "provider_submission"));
   if (!source) throw new Error("provider_submission data source missing (run seed)");
@@ -242,6 +282,9 @@ export async function registerProvider(db: DB, input: unknown, ctx: { ip: string
       grantedAt: ctx.now,
       ipHash: keyedHash(`ip:${ctx.ip}`),
     });
+    // Self-registered accounts must confirm their email before any enquiry can reach them (review M9).
+    const verifyToken = await issuePasswordToken(tx, user!.id, ctx.now, 72, "verify_email");
+    await enqueue(tx, { to: email, template: "verify_email", payload: { setPasswordToken: verifyToken } }, ctx.now);
     await audit(tx, PUBLIC, "provider.registered", "organization", orgId, { userId: user!.id });
     return orgId;
   });

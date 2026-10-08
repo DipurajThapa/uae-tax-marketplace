@@ -2,24 +2,28 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { login, currentUser } from "@/lib/session";
 import { Field } from "@/components/ui";
+import { flashUrl, readFlash } from "@/lib/flash";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
 async function signIn(formData: FormData) {
   "use server";
   const res = await login(String(formData.get("email") ?? ""), String(formData.get("password") ?? ""));
-  if (!res.ok) redirect(`/login?error=${encodeURIComponent(res.error)}`);
+  if (!res.ok) redirect(flashUrl("/login", "error", res.error));
   redirect(res.user.role === "provider" ? "/provider" : "/admin");
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const user = await currentUser();
   if (user) redirect(user.role === "provider" ? "/provider" : "/admin");
-  const { error } = await searchParams;
+  const sp = await searchParams;
+  const error = readFlash(sp.error);
+  const notice = readFlash(sp.notice);
   return (
     <div className="container narrow" style={{ maxWidth: 440 }}>
       <h1>Sign in</h1>
       <p className="muted">For listed providers and staff. Businesses looking for help do not need an account.</p>
+      {notice && <div className="alert alert-ok" role="status">{notice}</div>}
       {error && <div className="alert alert-bad" role="alert">{error}</div>}
       <form action={signIn} className="card" style={{ marginTop: 16 }}>
         <Field label="Email" name="email"><input id="email" name="email" type="email" autoComplete="email" required /></Field>

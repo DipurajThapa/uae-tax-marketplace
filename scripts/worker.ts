@@ -11,6 +11,7 @@ const { applyRetention } = await import("../src/lib/enquiry");
 const { pruneRateLimits } = await import("../src/lib/ratelimit");
 const { SYSTEM } = await import("../src/lib/audit");
 const { purgeExpiredPersonalData } = await import("../src/lib/retention");
+const { renewTestSubscriptions } = await import("../src/lib/billing");
 
 const db = getDb();
 const once = process.argv.includes("--once");
@@ -26,7 +27,8 @@ async function tick() {
     const erased = await applyRetention(db, SYSTEM, now);
     await pruneRateLimits(db, new Date(now.getTime() - 2 * 86400_000));
     const purged = await purgeExpiredPersonalData(db, now);
-    console.log(JSON.stringify({ at: now.toISOString(), job: "hourly", expiredCredentials: expired, erasedEnquiries: erased, ...purged }));
+    const renewed = await renewTestSubscriptions(db, now);
+    console.log(JSON.stringify({ at: now.toISOString(), job: "hourly", expiredCredentials: expired, erasedEnquiries: erased, renewedSubscriptions: renewed, ...purged }));
   }
 }
 

@@ -33,7 +33,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/for-providers">For providers</Link>
               {user?.role === "provider" && <Link href="/provider">My dashboard</Link>}
               {(user?.role === "admin" || user?.role === "reviewer") && <Link href="/admin">Admin</Link>}
-              {user ? <Link href="/logout" prefetch={false}>Sign out</Link> : <Link href="/login">Sign in</Link>}
+              {user ? (
+                <form action="/logout" method="post" style={{ display: "inline" }}>
+                  <button type="submit" className="nav-button">Sign out</button>
+                </form>
+              ) : (
+                <Link href="/login">Sign in</Link>
+              )}
             </nav>
           </div>
         </header>

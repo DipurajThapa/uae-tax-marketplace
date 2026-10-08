@@ -50,6 +50,7 @@ describe("markdown", () => {
     expect(html).not.toContain("<script>");
     expect(html).not.toContain("javascript:");
     expect(html).toContain('href="https://tax.gov.ae"');
+    expect(renderMarkdown("[x](//evil.example)")).not.toContain("href"); // review L10
   });
 });
 
@@ -88,3 +89,13 @@ describe("effective credential status", () => {
   });
 });
 void rateLimit;
+
+import { signFlash, readFlash } from "@/lib/flash";
+describe("signed flash messages (review L3)", () => {
+  it("round-trips our own messages and rejects crafted or altered ones", () => {
+    process.env.APP_SECRET = "test-secret-0123456789abcdef0123456789abcdef";
+    expect(readFlash(signFlash("Saved"))).toBe("Saved");
+    expect(readFlash("Call +971 50 000 0000")).toBeUndefined();
+    expect(readFlash(signFlash("Saved").replace("Saved", "Hacked"))).toBeUndefined();
+  });
+});

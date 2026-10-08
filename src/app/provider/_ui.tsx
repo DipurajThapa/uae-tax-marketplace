@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { flashUrl, readFlash } from "@/lib/flash";
 
 /** Shared, non-routed helpers for the provider area. */
 
@@ -13,10 +14,13 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 /** Redirects back to a provider page with a one-line message (POST-redirect-GET). Never call inside try. */
 export function back(path: string, kind: "notice" | "error", message: string): never {
-  redirect(`${path}?${kind}=${encodeURIComponent(message.slice(0, 300))}`);
+  redirect(flashUrl(path, kind, message));
 }
 
-export function Flash({ notice, error }: { notice?: string; error?: string }) {
+export function Flash({ notice: rawNotice, error: rawError }: { notice?: string; error?: string }) {
+  // Only messages signed by our own redirects are shown (review L3).
+  const notice = readFlash(rawNotice);
+  const error = readFlash(rawError);
   return (
     <>
       {notice && (

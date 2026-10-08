@@ -13,18 +13,18 @@ Stage 7 (hardening) for the first release candidate. Stages 0–6 are implemente
 | Matching and leads: assessment, matching, consent, routing, outbox, erasure, retention | COMPLETE |
 | SEO/AEO plumbing | COMPLETE (technical only; no indexing claimed) |
 | Commercial systems | COMPLETE in test mode; live billing BLOCKED (OPS-02) |
-| Hardening: adversarial review, fixes | IN PROGRESS (review follow-ups open) |
+| Hardening: adversarial review, fixes | COMPLETE except M10 (counsel) and nonce CSP (ENG-15) |
 | Production readiness: Dockerfile, health, runbook, backups | IN PROGRESS (hosting BLOCKED, OPS-01) |
 | Real supply and real content | BLOCKED (BIZ-04, CT-01) |
 
 ## Where things are
-- Repo: `DipurajThapa/uae-tax-marketplace`, PR #1 (draft) from `claude/fervent-newton-l7gdzb` into `main`.
+- Repo: `DipurajThapa/uae-tax-marketplace`. `main` contains PR #1 (merged). The review follow-ups are on `claude/fervent-newton-l7gdzb` in a new PR.
 - Local DBs: `marketplace_dev` (demo), `marketplace_test`, `marketplace_e2e`.
 
 ## Next executable task
-1. Get PR #1 CI green on GitHub (the latest push carries the fixes; see EVIDENCE_LOG CI history).
-2. Review follow-ups in order: M9 (email verification for self-registration), L6 (dedupe response leaks another buyer's ref), L3 (map flash messages to codes), L8 (custom error page), L9 (note: 0002 migration needs a default on non-empty DBs).
-3. Then ENG-07 (individual professionals UI) and ENG-09 (guide editor), since content and people are needed before launch.
+1. Merge the follow-ups PR once CI is green.
+2. ENG-15 nonce-based CSP; ENG-07 individual professionals UI; ENG-09 guide editor.
+3. Everything else waits on owner or counsel items (TASK_BACKLOG "Launch blockers").
 
 ## How to resume
 `cat docs/PROJECT_STATE.md docs/TASK_BACKLOG.md`, then `npm ci && npm run db:migrate && npm run db:seed -- --demo && npm run check`.

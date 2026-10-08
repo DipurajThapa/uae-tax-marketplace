@@ -6,7 +6,7 @@ import { notifications, enquiryRecipients } from "@/db/schema";
 import { config } from "./config";
 import { audit, SYSTEM, type Actor } from "./audit";
 
-export type Template = "provider_new_enquiry" | "buyer_enquiry_receipt" | "claim_decision" | "account_created" | "provider_enquiry_withdrawn" | "password_reset";
+export type Template = "provider_new_enquiry" | "buyer_enquiry_receipt" | "claim_decision" | "account_created" | "provider_enquiry_withdrawn" | "password_reset" | "verify_email";
 
 export type Mail = { to: string; subject: string; text: string };
 
@@ -77,6 +77,11 @@ export function render(template: Template, p: Record<string, unknown>): Omit<Mai
             subject: `Your claim for ${p.orgName} was not approved`,
             text: `We could not confirm that you represent ${p.orgName}.${p.note ? `\nReviewer note: ${p.note}` : ""}\nYou can submit a new claim with further evidence.`,
           };
+    case "verify_email":
+      return {
+        subject: "Confirm your email address",
+        text: `Please confirm this email address so your firm can receive enquiries through the directory: ${site}/verify-email/${p.setPasswordToken}\nThe link works once and expires in 72 hours. If you did not create a listing, ignore this email.`,
+      };
     case "password_reset":
       return {
         subject: "Reset your password",

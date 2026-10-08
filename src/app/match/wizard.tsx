@@ -132,7 +132,7 @@ export function MatchWizard({ preselect, initialService }: Props) {
         startedAt: startedAt.current,
       });
       if (res.ok) {
-        router.push(`/enquiry/sent?ref=${encodeURIComponent(res.ref)}${res.duplicate ? "&duplicate=1" : ""}`);
+        router.push(res.duplicate ? "/enquiry/sent?duplicate=1" : `/enquiry/sent?ref=${encodeURIComponent(res.ref)}`);
         return;
       }
       setFormError(res.message);

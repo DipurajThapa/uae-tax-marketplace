@@ -23,8 +23,8 @@ const [src] = await db.insert(s.dataSources).values([
 ]).returning();
 
 const pw = await hashPassword("e2e-password-123");
-const [admin] = await db.insert(s.users).values({ email: "admin@e2e.invalid", name: "E2E Admin", role: "admin", passwordHash: pw }).returning();
-await db.insert(s.users).values({ email: "reviewer@e2e.invalid", name: "E2E Reviewer", role: "reviewer", passwordHash: pw });
+const [admin] = await db.insert(s.users).values({ email: "admin@e2e.invalid", name: "E2E Admin", role: "admin", passwordHash: pw, emailVerifiedAt: new Date() }).returning();
+await db.insert(s.users).values({ email: "reviewer@e2e.invalid", name: "E2E Reviewer", role: "reviewer", passwordHash: pw, emailVerifiedAt: new Date() });
 
 async function org(name: string, o: { services: string[]; emirate?: string; claimed?: boolean; verify?: string[]; languages?: string[]; user?: string }) {
   const [row] = await db
@@ -41,7 +41,7 @@ async function org(name: string, o: { services: string[]; emirate?: string; clai
     const [c] = await db.insert(s.credentials).values({ credentialType: t, organizationId: row!.id, registrationNumber: "E2E-0001", status: "pending" }).returning();
     await verifyCredential(db, userActor(admin!.id), c!.id, { method: "official_register", evidenceNote: "E2E fixture: checked against register" });
   }
-  if (o.user) await db.insert(s.users).values({ email: o.user, name: `${name} owner`, role: "provider", organizationId: row!.id, passwordHash: pw });
+  if (o.user) await db.insert(s.users).values({ email: o.user, name: `${name} owner`, role: "provider", organizationId: row!.id, passwordHash: pw, emailVerifiedAt: new Date() });
   return row!;
 }
 

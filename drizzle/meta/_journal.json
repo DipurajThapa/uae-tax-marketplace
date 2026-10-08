@@ -29,6 +29,13 @@
       "when": 1791451898405,
       "tag": "0003_password_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791459382064,
+      "tag": "0004_email_verification",
+      "breakpoints": true
     }
   ]
 }

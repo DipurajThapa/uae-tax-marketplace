@@ -74,7 +74,7 @@ export default async function ProvidersPage({ searchParams }: { searchParams: Pr
         </form>
         <section aria-live="polite">
           <p className="muted">{res.total} provider{res.total === 1 ? "" : "s"} found. Sorted by verified registration, then name. <Link href="/how-ranking-works">How ordering works</Link>.</p>
-          {promoted.length > 0 && (
+          {promoted.length > 0 && !f.q && !f.kind && !f.language && !f.jurisdiction && !f.credential && !f.verifiedOnly && (
             <section aria-label="Sponsored listings" className="stack" style={{ marginBottom: 24 }}>
               <p className="small muted" style={{ margin: 0 }}>Sponsored: these providers pay for this placement. It does not affect search order or match scores.</p>
               {promoted.map((p) => <ProviderCard key={`s-${p.id}`} p={p} sponsored />)}

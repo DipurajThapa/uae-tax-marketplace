@@ -2,19 +2,20 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { consumePasswordToken } from "@/lib/claims";
 import { Field } from "@/components/ui";
+import { flashUrl, readFlash } from "@/lib/flash";
 
 export const metadata = { title: "Set your password", robots: { index: false } };
 
 export default async function SetPassword({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ error?: string }> }) {
   const { token } = await params;
-  const { error } = await searchParams;
+  const error = readFlash((await searchParams).error);
   async function save(formData: FormData) {
     "use server";
     const pw = String(formData.get("password") ?? "");
-    if (pw !== String(formData.get("confirm") ?? "")) redirect(`/set-password/${token}?error=${encodeURIComponent("Passwords do not match")}`);
+    if (pw !== String(formData.get("confirm") ?? "")) redirect(flashUrl(`/set-password/${token}`, "error", "Passwords do not match"));
     const res = await consumePasswordToken(getDb(), token, pw);
-    if (!res.ok) redirect(`/set-password/${token}?error=${encodeURIComponent(res.error)}`);
-    redirect("/login?error=" + encodeURIComponent("Password set. Please sign in."));
+    if (!res.ok) redirect(flashUrl(`/set-password/${token}`, "error", res.error));
+    redirect(flashUrl("/login", "notice", "Password set. Please sign in."));
   }
   return (
     <div className="container narrow" style={{ maxWidth: 440 }}>

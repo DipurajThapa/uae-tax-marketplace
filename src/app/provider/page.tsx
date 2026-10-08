@@ -2,15 +2,23 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { enquiries, enquiryRecipients } from "@/db/schema";
+import { enquiries, enquiryRecipients, users } from "@/db/schema";
+import { requestEmailVerification } from "@/lib/claims";
 import { requireProvider } from "@/lib/session";
 import { getProviderById } from "@/lib/providers";
 import { effectivePlan, leadsThisPeriod } from "@/lib/billing";
 import { CREDENTIAL_BY_CODE, EMIRATE_BY_CODE, SERVICE_BY_CODE } from "@/lib/taxonomy";
 import { CredentialLine, Empty } from "@/components/ui";
-import { CLAIM_STATE, Flash, LISTING_STATUS, RecipientStatus, fmtAed, fmtDate } from "./_ui";
+import { CLAIM_STATE, Flash, LISTING_STATUS, RecipientStatus, back, fmtAed, fmtDate } from "./_ui";
 
 export const metadata = { title: "Overview", robots: { index: false } };
+
+async function resendVerification() {
+  "use server";
+  const user = await requireProvider();
+  const r = await requestEmailVerification(getDb(), user.id);
+  back("/provider", r.ok ? "notice" : "error", r.ok ? "We have sent a new confirmation link to your email." : "We could not send a new link right now. Try again later.");
+}
 
 export default async function ProviderOverview({ searchParams }: { searchParams: Promise<{ notice?: string; error?: string }> }) {
   const user = await requireProvider();
@@ -21,6 +29,7 @@ export default async function ProviderOverview({ searchParams }: { searchParams:
   if (!detail) notFound();
   const { org } = detail;
 
+  const [me] = await db.select({ verifiedAt: users.emailVerifiedAt }).from(users).where(eq(users.id, user.id));
   const [plan, used, recent] = await Promise.all([
     effectivePlan(db, org.id, now),
     leadsThisPeriod(db, [org.id], now),
@@ -38,6 +47,7 @@ export default async function ProviderOverview({ searchParams }: { searchParams:
 
   // Why enquiries may not arrive right now (mirrors the eligibility checks in lib/matching).
   const blockers: string[] = [];
+  if (!me?.verifiedAt) blockers.push("Your email address is not confirmed yet.");
   if (org.listingStatus !== "published") blockers.push("Your listing is not published.");
   if (org.claimState !== "claimed") blockers.push("Your listing is not claimed yet.");
   if (!org.acceptingEnquiries) blockers.push("You have switched off new enquiries in your profile.");
@@ -53,6 +63,12 @@ export default async function ProviderOverview({ searchParams }: { searchParams:
     <div className="stack">
       <h1>Overview</h1>
       <Flash notice={notice} error={error} />
+      {!me?.verifiedAt && (
+        <form action={resendVerification} className="alert alert-warn" role="status">
+          <strong>Confirm your email address.</strong> Enquiries can only reach you after you click the link we emailed to {user.email}.{" "}
+          <button type="submit" className="btn btn-secondary btn-sm">Send a new link</button>
+        </form>
+      )}
 
       <div className="grid grid-2">
         <section className="card" aria-labelledby="listing-h">
