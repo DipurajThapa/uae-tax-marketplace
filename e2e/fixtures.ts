@@ -48,7 +48,9 @@ async function org(name: string, o: { services: string[]; emirate?: string; clai
 }
 
 await org("E2E Verified Tax Agency", { services: ["vat-returns", "fta-representation", "corporate-tax-returns"], verify: ["FTA_TAX_AGENCY"], languages: ["en", "ar"], user: "agency@e2e.invalid" });
-await org("E2E Bookkeepers", { services: ["vat-returns", "bookkeeping"], user: "books@e2e.invalid" });
+const books = await org("E2E Bookkeepers", { services: ["vat-returns", "bookkeeping"], user: "books@e2e.invalid" });
+// A second login at the same firm, used only by the optional two-factor journey (ENG-16).
+await db.insert(s.users).values({ email: "security@e2e.invalid", name: "E2E Security", role: "provider", organizationId: books.id, passwordHash: pw, emailVerifiedAt: new Date() });
 await org("E2E Unclaimed Firm", { services: ["vat-returns"], claimed: false });
 await org("E2E Unverified Representation", { services: ["fta-representation"], user: "unverified@e2e.invalid" });
 const [check] = await db.select({ n: sql<number>`count(*)::int` }).from(s.organizations).where(eq(s.organizations.listingStatus, "published"));

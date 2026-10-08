@@ -14,13 +14,13 @@ async function check(formData: FormData) {
   const ok = await verifyMfa(getDb(), user.id, String(formData.get("code") ?? ""), { ip: await clientIp() });
   if (!ok) redirect(flashUrl("/login/mfa", "error", "That code did not work. Use the current code from your authenticator app."));
   await upgradeSession(user);
-  redirect("/admin");
+  redirect(user.role === "provider" ? "/provider" : "/admin");
 }
 
 export default async function MfaPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const user = await currentUser();
   if (!user) redirect("/login");
-  if (user.stage !== "mfa") redirect(user.stage === "enroll" ? "/account/mfa-setup" : "/admin");
+  if (user.stage !== "mfa") redirect(user.stage === "enroll" ? "/account/mfa-setup" : user.role === "provider" ? "/provider" : "/admin");
   const error = readFlash((await searchParams).error);
   return (
     <div className="container narrow" style={{ maxWidth: 440 }}>

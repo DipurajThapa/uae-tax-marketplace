@@ -251,6 +251,30 @@ test("ENG-09: an admin writes, gates and publishes a guide; reviewers cannot pub
   await signOut(page);
 });
 
+test("ENG-16: a provider turns on two-factor, signs in with a code, and turns it off", async ({ page }) => {
+  test.setTimeout(90_000);
+  const email = "security@e2e.invalid";
+  await signIn(page, email);
+  await expect(page).toHaveURL(/\/provider$/);
+  await page.goto("/provider/security");
+  await page.getByRole("button", { name: "Set up two-factor authentication" }).click();
+  const key = (await page.getByTestId("totp-key").textContent())!.trim();
+  E2E_TOTP_SECRETS[email] = key;
+  await page.getByLabel("Code from your app").fill(await nextCode(key));
+  await page.getByRole("button", { name: "Turn on two-factor authentication" }).click();
+  await expect(page.getByText("Two-factor authentication is on.")).toBeVisible();
+  await signOut(page);
+
+  await signIn(page, email); // goes through /login/mfa with the new key
+  await expect(page).toHaveURL(/\/provider$/);
+  await page.goto("/provider/security");
+  await page.getByLabel("Code from your app").fill(await nextCode(key));
+  await page.getByRole("button", { name: "Turn off two-factor authentication" }).click();
+  await expect(page.getByText("Two-factor authentication is off.")).toBeVisible();
+  await signOut(page);
+  delete E2E_TOTP_SECRETS[email];
+});
+
 test("ENG-10: insights show basic counts on the free plan and point to paid figures", async ({ page }) => {
   await signIn(page, "books@e2e.invalid");
   await page.goto("/provider/insights");

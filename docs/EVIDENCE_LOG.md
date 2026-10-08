@@ -38,7 +38,8 @@ A separate reviewer agent tried to invalidate the release-candidate claim. It fo
 
 ### Second review (features in PR #3)
 A second reviewer agent attacked ENG-07/09/10/13/15. It found 0 Critical, 1 High, 6 Medium and 6 Low issues. All fixed with tests except provider MFA, which is accepted as risk R-11 (ENG-16). See TASK_BACKLOG "second adversarial review".
-- After the fixes: `npm run check` with 107 unit and integration tests passing; `npm run test:e2e` with 17 of 17 passing (local run, 2026-10-08).
+- After the fixes: `npm run check` with 107 unit and integration tests passing; `npm run test:e2e` with 17 of 17 passing (local run, 2026-10-08). PR #3 merged with CI green.
+- ENG-16 (optional provider two-factor): 110 unit and integration tests and 18 of 18 E2E passing (local run, 2026-10-08).
 
 ## CI history
 - PR #1 merged into `main` as `a61622b` with CI green.

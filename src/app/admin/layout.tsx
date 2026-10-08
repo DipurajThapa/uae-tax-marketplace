@@ -16,7 +16,7 @@ const SECTIONS: { href: string; label: string; adminOnly?: boolean }[] = [
   { href: "/admin/import", label: "Import", adminOnly: true },
   { href: "/admin/billing", label: "Billing (test mode)", adminOnly: true },
   { href: "/admin/promotions", label: "Promotions", adminOnly: true },
-  { href: "/admin/staff", label: "Staff", adminOnly: true },
+  { href: "/admin/staff", label: "Staff and two-factor", adminOnly: true },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
