@@ -5,6 +5,7 @@ import * as s from "@/db/schema";
 import { addProfessional, updateProfessional, removeProfessional, submitIndividualCredential } from "@/lib/people";
 import { approveSubmission, openDispute, freezeForDispute, duplicateRegistrations, verifyCredential } from "@/lib/verification";
 import { expectDbError } from "./helpers";
+import { purgeExpiredPersonalData } from "@/lib/retention";
 import { loadCandidates, getProviderBySlug } from "@/lib/providers";
 import { matchProviders } from "@/lib/matching";
 import { userActor } from "@/lib/audit";
@@ -176,5 +177,26 @@ describe("review2 fixes for people", () => {
     expect(await duplicateRegistrations(db, "FTA_TAX_AGENT", subA!.registrationNumber, subA!.id)).toEqual(
       expect.arrayContaining([expect.objectContaining({ person: "Second Claimant", status: "pending" })]),
     );
+  });
+
+  it("ENG-18: removed people are de-identified after 24 months unless a dispute about them is open", async () => {
+    const { org, user } = await makeOrg();
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const kept = await person(org.id, user!.id, "Disputed Person");
+    const gone = await person(org.id, user!.id, "Former Employee");
+    await submit(org.id, user!.id, kept, "TAAN-55");
+    const [sub] = await db.select().from(s.credentialSubmissions);
+    await approveSubmission(db, userActor(reviewer.id), sub!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now);
+    const [cred] = await db.select().from(s.credentials).where(eq(s.credentials.professionalId, kept));
+    const d = await openDispute(db, { organizationId: org.id, credentialId: cred!.id, reporterEmail: "r@example.invalid", reason: "other", details: "Still under investigation here." }, { ip: "203.0.113.5", now });
+    if (!d.ok) throw new Error("dispute");
+    const longAgo = new Date(now.getTime() - 800 * 86400_000);
+    await removeProfessional(db, userActor(user!.id), org.id, kept, longAgo);
+    await removeProfessional(db, userActor(user!.id), org.id, gone, longAgo);
+    const r = await purgeExpiredPersonalData(db, now);
+    expect(r.professionalsScrubbed).toBe(1);
+    const rows = await db.select().from(s.professionals);
+    expect(rows.find((p) => p.id === gone)!.fullName).toBe("[erased]");
+    expect(rows.find((p) => p.id === kept)!.fullName).toBe("Disputed Person");
   });
 });

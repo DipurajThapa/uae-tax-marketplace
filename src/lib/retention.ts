@@ -1,6 +1,6 @@
 import { and, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { DB } from "@/db/client";
-import { sessions, passwordTokens, claims, disputes, notifications } from "@/db/schema";
+import { sessions, passwordTokens, claims, disputes, notifications, professionals } from "@/db/schema";
 
 /**
  * Retention beyond enquiries (review M5). Periods are owner-adjustable defaults (DECISIONS D-009).
@@ -27,6 +27,21 @@ export async function purgeExpiredPersonalData(db: DB, now: Date, months = 24) {
       .where(and(lt(disputes.createdAt, cutoff), sql`${disputes.reporterEmail} <> '[erased]'`, sql`${disputes.state} <> 'open'`))
       .returning({ id: disputes.id })
   ).length;
+  // People removed from a firm: keep the row (it anchors audit and dispute history) but drop what
+  // identifies them, once no dispute about their registrations is open (PIA risk 4, ENG-18).
+  const professionalsScrubbed = (
+    await db
+      .update(professionals)
+      .set({ fullName: "[erased]", title: null, bio: null, languages: [] })
+      .where(
+        and(
+          lt(professionals.removedAt, cutoff),
+          sql`${professionals.fullName} <> '[erased]'`,
+          sql`not exists (select 1 from disputes d join credentials c on c.id = d.credential_id where c.professional_id = ${professionals.id} and d.state = 'open')`,
+        ),
+      )
+      .returning({ id: professionals.id })
+  ).length;
   // Sent mail older than 90 days: keep the row for delivery history, drop the address and payload.
   const mailCutoff = new Date(now.getTime() - 90 * 86400_000);
   const mailScrubbed = (
@@ -36,5 +51,5 @@ export async function purgeExpiredPersonalData(db: DB, now: Date, months = 24) {
       .where(and(lt(notifications.createdAt, mailCutoff), sql`${notifications.status} in ('sent','dead')`, sql`${notifications.toAddress} <> '[erased]'`))
       .returning({ id: notifications.id })
   ).length;
-  return { sessionsDeleted, tokensDeleted, claimsScrubbed, disputesScrubbed, mailScrubbed };
+  return { sessionsDeleted, tokensDeleted, claimsScrubbed, disputesScrubbed, professionalsScrubbed, mailScrubbed };
 }

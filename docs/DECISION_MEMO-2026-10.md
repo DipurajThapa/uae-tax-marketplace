@@ -201,6 +201,6 @@ Then start a new session. I'll re-run the official-source checklist and archive 
    - sign the FTA and MoF letters;
    - 10 provider pricing interviews.
 3. **Engineering meanwhile** (no decisions needed):
-   - consent flow for named professionals and retention for removed people (PIA);
+   - consent flow for named professionals (PIA risk 1; retention for removed people is already done, ENG-18);
    - provider-set capacity once you confirm D6;
    - rebrand the app once D1 is settled.

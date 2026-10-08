@@ -123,7 +123,7 @@ The PDPL is consent-first: processing needs consent unless a listed exception ap
 | 1 | A firm adds a named employee or former employee, with registration number and bio, to its **public** profile. The person never agreed and may not know. This is publication without the data subject's consent under a consent-first law. | M | M | Before a person is shown publicly, the platform emails them a consent request (or the firm uploads signed consent). Show a person only after consent. They can withdraw at any time. | Gap | Engineering + counsel (wording) |
 | 2 | Providers who receive enquiries are not bound by any terms. They may reuse buyer details for unrelated marketing or keep them indefinitely. | M | M | Provider terms making each provider an **independent controller**: purpose limitation, no resale, security, deletion on the buyer's request, breach notice to the platform. Acceptance recorded per version. | Gap | Counsel (draft) + engineering (acceptance record) |
 | 3 | Transactional email (recommended: Postmark, US) and any non-UAE backup copy move personal data abroad. No adequacy list exists and no Art. 23 contract is in place. | H (if those vendors are chosen) | M | Sign the vendor DPAs with Art. 23-style clauses; name the transfers in the privacy notice; prefer EU or UAE data locations where offered. | Gap | Owner + counsel |
-| 4 | People removed from a firm (soft delete, review2 M5) keep their name and bio indefinitely after any dispute closes. | H | L | Extend `purgeExpiredPersonalData`: scrub name, title and bio of professionals removed more than 24 months ago with no open dispute. | Gap (small) | Engineering |
+| 4 | People removed from a firm (soft delete, review2 M5) kept their name and bio indefinitely after any dispute closed. | H | L | `purgeExpiredPersonalData` now scrubs name, title, bio and languages of professionals removed more than 24 months ago with no open dispute (ENG-18). | Done | Engineering |
 | 5 | The consent and notice texts are drafts (`-v1-draft`). Consent collected now would not rest on approved wording. | H until launch | M | Pre-launch only. Approve the texts, bump the versions, and record the full text (RV-M10). | Blocked on counsel | Counsel |
 
 **Residual risk after mitigations:** low. What remains is legal uncertainty while the PDPL implementing rules are missing and the regulator is being restructured. Review again when they appear.
@@ -150,7 +150,7 @@ The PDPL is consent-first: processing needs consent unless a listed exception ap
 - [ ] Consent flow for named professionals before public display (risk 1). Owner: engineering. Due before launch.
 - [ ] Provider terms with independent-controller clauses, accepted per version (risk 2). Owner: counsel drafts, engineering records acceptance.
 - [ ] Vendor DPAs signed with transfer clauses; transfers named in the privacy notice (risk 3). Owner: owner and counsel.
-- [ ] Retention for removed professionals (risk 4). Owner: engineering.
+- [x] Retention for removed professionals (risk 4). Done: ENG-18.
 - [ ] Approved consent and notice texts; versions bumped (risk 5). Owner: counsel.
 - [ ] Privacy notice updated per section 4. Owner: counsel, with an engineering change.
 - [ ] Documented process to answer access and deletion requests within the legal time limit (counsel to confirm the period). Owner: owner.
