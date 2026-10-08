@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { CREDENTIAL_TYPES } from "@/lib/taxonomy";
+import { PageHeader } from "@/components/page";
 
 export const metadata = { title: "How we verify registrations", alternates: { canonical: "/how-we-verify" } };
 
 export default function HowWeVerify() {
   return (
     <div className="container narrow">
-      <h1>How we verify registrations</h1>
-      <p>Anyone can call themselves a tax consultant. Some roles, though, need a registration with a UAE authority. We show what we have checked, how we checked it, and when, so you can judge for yourself.</p>
+      <PageHeader kicker="Explained" title="How we verify registrations" lead="Anyone can call themselves a tax consultant. Some roles, though, need a registration with a UAE authority. We show what we have checked, how we checked it, and when, so you can judge for yourself." />
       <h2>Three different kinds of registration</h2>
       <ul>
         <li><strong>Registered tax agents and tax agencies</strong> are registered with the Federal Tax Authority (FTA). They can represent a business in its dealings with the FTA.</li>

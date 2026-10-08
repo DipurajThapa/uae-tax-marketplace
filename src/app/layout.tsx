@@ -6,6 +6,7 @@ import { config } from "@/lib/config";
 import { BRAND } from "@/lib/brand";
 import { currentUser } from "@/lib/session";
 import { LogoMark } from "@/components/logo";
+import { SiteNav } from "@/components/site-nav";
 
 export const metadata: Metadata = {
   metadataBase: new URL(config.siteUrl),
@@ -36,28 +37,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="site-header">
           <div className="container bar">
             <Link href="/" className="logo"><LogoMark />{BRAND.name}</Link>
-            <nav className="nav" aria-label="Main">
-              <Link href="/providers">Find providers</Link>
-              <Link href="/match">Get matched</Link>
-              <Link href="/guides">Guides</Link>
-              <Link href="/for-providers">For providers</Link>
-              {user?.role === "provider" && <Link href="/provider">My dashboard</Link>}
-              {(user?.role === "admin" || user?.role === "reviewer") && <Link href="/admin">Admin</Link>}
-              {user ? (
-                <form action="/logout" method="post" style={{ display: "inline" }}>
-                  <button type="submit" className="nav-button">Sign out</button>
-                </form>
-              ) : (
-                <Link href="/login">Sign in</Link>
-              )}
-            </nav>
+            <SiteNav
+              signedIn={Boolean(user)}
+              links={[
+                { href: "/providers", label: "Find providers" },
+                { href: "/match", label: "Get matched" },
+                { href: "/guides", label: "Guides" },
+                { href: "/for-providers", label: "For providers" },
+                ...(user?.role === "provider" ? [{ href: "/provider", label: "My dashboard" }] : []),
+                ...(user?.role === "admin" || user?.role === "reviewer" ? [{ href: "/admin", label: "Admin" }] : []),
+              ]}
+            />
           </div>
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
           <div className="container cols">
             <div>
-              <p className="footer-brand">{BRAND.name} <span lang="ar" dir="rtl" style={{ fontSize: "1.2rem", textTransform: "none" }}>{BRAND.nameAr}</span></p>
+              <p className="footer-brand">{BRAND.name} <span lang="ar" dir="rtl" className="footer-ar">{BRAND.nameAr}</span></p>
               <p className="small">{BRAND.name} is a {BRAND.descriptor}. We do not give tax advice. Registration badges appear only after we check them against an official source or document.</p>
               <p className="small independence">{BRAND.independence}</p>
             </div>
@@ -73,6 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <ul>
                 <li><Link href="/how-we-verify">How we verify</Link></li>
                 <li><Link href="/how-ranking-works">How matching and ranking work</Link></li>
+                <li><Link href="/how-ranking-works#money">How Taxdar makes money</Link></li>
                 <li><Link href="/for-providers">List your firm</Link></li>
               </ul>
             </div>

@@ -32,7 +32,7 @@ function Checks({
         ))}
       </div>
       {error && (
-        <div className="error small" id={`${name}-error`} role="alert" style={{ color: "var(--bad)", marginTop: 8 }}>
+        <div className="form-error" id={`${name}-error`} role="alert">
           {error}
         </div>
       )}
@@ -138,7 +138,7 @@ export function ProfileForm({ initial, maxDescriptionChars }: { initial: Profile
           </div>
         ))}
         {e.services && (
-          <div id="services-error" role="alert" style={{ color: "var(--bad)" }} className="small">
+          <div id="services-error" role="alert" className="form-error">
             {e.services}
           </div>
         )}

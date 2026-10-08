@@ -7,6 +7,7 @@ import { requireProvider } from "@/lib/session";
 import { billing, effectivePlan, leadsThisPeriod, periodMonth } from "@/lib/billing";
 import { audit, userActor } from "@/lib/audit";
 import { Flash, back, chargeLabel, fmtAed, fmtDate } from "../_ui";
+import { MoneyRules, PlanCards } from "@/components/money";
 
 export const metadata = { title: "Plan & billing", robots: { index: false } };
 
@@ -78,7 +79,7 @@ export default async function ProviderBilling({ searchParams }: { searchParams: 
   return (
     <div className="stack">
       <h1>Plan &amp; billing</h1>
-      <div className="alert alert-warn" role="note" style={{ fontSize: "1.05rem" }}>
+      <div className="alert alert-warn" role="note">
         <strong>TEST MODE: no payment is taken.</strong> Introductory pricing; billing is not live yet. Plan changes are recorded so we can test the
         service, but no card is charged and no invoice is issued.
       </div>
@@ -119,51 +120,26 @@ export default async function ProviderBilling({ searchParams }: { searchParams: 
 
       <section aria-labelledby="plans-h">
         <h2 id="plans-h">Plans</h2>
-        <p className="small muted">Introductory pricing; billing is not live yet. Lead allowances are limits, not a forecast of how many enquiries you will receive.</p>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Plan</th>
-                <th scope="col">Price per month</th>
-                <th scope="col">Leads included</th>
-                <th scope="col">Price per extra lead</th>
-                <th scope="col">Monthly lead limit</th>
-                <th scope="col">Promotions</th>
-                <th scope="col">
-                  <span className="skip">Action</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {allPlans.map((p) => {
-                const isCurrent = p.code === current.code;
-                return (
-                  <tr key={p.code} aria-current={isCurrent ? "true" : undefined}>
-                    <th scope="row">
-                      {p.name} {isCurrent && <span className="badge badge-ok">Current</span>}
-                    </th>
-                    <td>{p.monthlyPriceAed === 0 ? "Free" : fmtAed(p.monthlyPriceAed)}</td>
-                    <td>{p.includedLeadsPerMonth}</td>
-                    <td>{p.maxLeadsPerMonth > p.includedLeadsPerMonth ? fmtAed(p.overageLeadPriceAed) : "Not available"}</td>
-                    <td>{p.maxLeadsPerMonth}</td>
-                    <td>{p.canPromote ? "Yes" : "No"}</td>
-                    <td>
-                      {!isCurrent && (
-                        <form action={switchPlan}>
-                          <input type="hidden" name="plan" value={p.code} />
-                          <button className="btn btn-secondary btn-sm" type="submit" aria-label={`Switch to ${p.name} (test mode, no payment)`}>
-                            Switch (test mode)
-                          </button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <p className="small muted">Introductory pricing; billing is not live yet. Enquiry allowances are limits, not a forecast of how many enquiries you will receive.</p>
+        <PlanCards
+          rows={allPlans}
+          currentCode={current.code}
+          action={(p) =>
+            p.code === current.code ? null : (
+              <form action={switchPlan}>
+                <input type="hidden" name="plan" value={p.code} />
+                <button className="btn btn-secondary" type="submit" aria-label={`Switch to ${p.name} (test mode, no payment)`}>
+                  Switch to {p.name} (test mode)
+                </button>
+              </form>
+            )
+          }
+        />
+      </section>
+
+      <section aria-labelledby="money-h">
+        <h2 id="money-h">What you pay for</h2>
+        <MoneyRules compact />
       </section>
 
       <section aria-labelledby="charges-h">

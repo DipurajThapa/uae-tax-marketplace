@@ -72,7 +72,7 @@ export default async function Security({ searchParams }: { searchParams: Promise
         ) : secret && svg ? (
           <>
             <p>Scan this code with an authenticator app (for example Google Authenticator, Microsoft Authenticator or 1Password), then enter the 6-digit code it shows.</p>
-            <div role="img" aria-label="QR code for your authenticator app" style={{ width: 200, background: "#fff", padding: 8, borderRadius: 8 }} dangerouslySetInnerHTML={{ __html: svg }} />
+            <div role="img" aria-label="QR code for your authenticator app" className="qr-box" dangerouslySetInnerHTML={{ __html: svg }} />
             <p className="small">Can’t scan? Enter this key manually: <code data-testid="totp-key" style={{ userSelect: "all", wordBreak: "break-all" }}>{secret}</code></p>
             <form action={confirm}>
               {codeField}

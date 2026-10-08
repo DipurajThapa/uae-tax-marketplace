@@ -240,3 +240,71 @@ tbody th { background: transparent; color: var(--ink); font-family: var(--font);
   .nav a, .nav-button { padding: 6px 8px; font-size: 0.9rem; }
   .logo { font-size: 1.35rem; }
 }
+
+/* ---------- Shared page scaffolding ---------- */
+.page-header { margin: 0 0 28px; }
+.page-header .lead { font-size: 1.2rem; line-height: 1.5; color: var(--ink-2); max-width: 720px; margin: 0; }
+.page-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+.page-section { margin-top: 48px; }
+.page-section:first-child { margin-top: 0; }
+.sidebar-layout.sidebar-right { grid-template-columns: minmax(0, 1fr) 320px; }
+@media (max-width: 860px) { .sidebar-layout.sidebar-right { grid-template-columns: minmax(0, 1fr); } }
+.plain-list { list-style: none; padding: 0; margin: 0; }
+.mt-0 { margin-top: 0; } .mt-1 { margin-top: 8px; } .mt-2 { margin-top: 16px; } .mt-3 { margin-top: 24px; } .mt-4 { margin-top: 40px; }
+.mb-0 { margin-bottom: 0; } .mb-1 { margin-bottom: 8px; }
+.form-error { color: var(--bad); font-size: 0.88rem; font-weight: 600; margin-top: 8px; }
+.qr-box { width: 216px; background: #fff; padding: 8px; border: 3px solid var(--line); }
+.footer-ar { font-family: var(--font); font-size: 1.2rem; text-transform: none; }
+.card-title { font-size: 1.2rem; text-transform: none; font-family: var(--font); font-weight: 800; letter-spacing: 0; line-height: 1.25; }
+
+/* ---------- How Taxdar makes money (one block, reused) ---------- */
+.money { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; border: 3px solid var(--line); background: var(--surface); }
+.money-col { padding: 18px 20px; border-bottom: 3px solid var(--line); }
+.money-col p:last-child { margin-bottom: 0; }
+.money-never { background: var(--accent); color: #111; }
+.money-never .kicker { background: #111; color: #ffe14d; }
+.money-note { grid-column: 1 / -1; padding: 12px 20px; margin: 0; }
+@media (min-width: 760px) {
+  .money { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .money-col { border-bottom: 0; border-right: 3px solid var(--line); }
+  .money-col:nth-child(3) { border-right: 0; }
+  .money-note { border-top: 3px solid var(--line); }
+}
+
+/* ---------- Plans (pricing cards, mobile first) ---------- */
+.plans { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .plans { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+.plan { background: var(--surface); border: 3px solid var(--line); padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.plan-current { box-shadow: var(--hard); background: var(--accent-soft); }
+.plan-name { font-weight: 800; font-size: 1.1rem; margin: 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.plan-price { font-family: var(--font-display); font-weight: 900; text-transform: uppercase; font-size: 2.6rem; line-height: 1; margin: 0; }
+.plan-price .small { font-family: var(--font); text-transform: none; font-weight: 600; font-size: 0.95rem; }
+.plan-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; border-top: 2px solid var(--line); padding-top: 12px; }
+.plan-features li { padding-left: 22px; position: relative; }
+.plan-features li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 10px; height: 10px; background: var(--brand); }
+.plan-action { margin-top: auto; padding-top: 8px; }
+.plan-action .btn { width: 100%; }
+
+/* ---------- Mobile-first navigation and touch targets ---------- */
+.menu-toggle { display: none; }
+.nav a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.nav form { display: inline; margin: 0; }
+@media (max-width: 759px) {
+  .site-header .bar { flex-wrap: nowrap; min-height: 60px; }
+  .menu-toggle { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 16px; border: 2px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-weight: 800; text-transform: uppercase; cursor: pointer; }
+  .nav { display: none; position: absolute; left: 0; right: 0; top: 100%; background: var(--bg); border-bottom: 3px solid var(--line); padding: 8px 20px 16px; flex-direction: column; align-items: stretch; gap: 0; }
+  .nav[data-open] { display: flex; }
+  .nav a, .nav-button { min-height: 48px; display: flex; align-items: center; border-bottom: 1px solid var(--line-soft); font-size: 1.05rem; padding: 10px 4px; width: 100%; text-align: left; }
+  .site-header { position: sticky; }
+  .site-header .container { position: relative; }
+}
+.nav-button, .btn-sm, .admin-nav a, summary { min-height: 44px; }
+.admin-nav a { display: inline-flex; align-items: center; }
+summary { display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+input:not([type]), input[type="file"] { width: 100%; padding: 10px 12px; border: 2px solid var(--line); border-radius: 0; background: var(--surface); color: var(--ink); font: inherit; min-height: 46px; }
+@media (max-width: 759px) {
+  .admin-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .admin-nav a { white-space: nowrap; }
+  .page-actions .btn, .row > .btn { flex: 1 1 auto; }
+  h1 { font-size: clamp(2rem, 9vw, 2.6rem); }
+}

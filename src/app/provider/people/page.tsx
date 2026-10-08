@@ -102,7 +102,7 @@ export default async function People({ searchParams }: { searchParams: Promise<{
       {people.length === 0 && <div className="card">No people added yet.</div>}
       {people.map((p) => (
         <section className="card" key={p.id} aria-labelledby={`p-${p.id}`}>
-          <h2 id={`p-${p.id}`} style={{ fontSize: "1.15rem" }}>{p.fullName}{p.title ? <span className="muted">, {p.title}</span> : null}</h2>
+          <h2 id={`p-${p.id}`} className="card-title">{p.fullName}{p.title ? <span className="muted">, {p.title}</span> : null}</h2>
           <p className="small muted">{p.languages.map((l) => LANGUAGE_BY_CODE[l]?.name ?? l).join(", ") || "No languages listed"}</p>
           <div className="stack" style={{ gap: 6 }}>
             {creds.filter((c) => c.professionalId === p.id).map((c) => (

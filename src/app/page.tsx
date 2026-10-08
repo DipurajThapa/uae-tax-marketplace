@@ -6,6 +6,7 @@ import { BRAND } from "@/lib/brand";
 import { JsonLd } from "@/components/ui";
 import { config } from "@/lib/config";
 import { RadarScene, RoleIcon, StepIcon } from "@/components/illustrations";
+import { MoneyRules } from "@/components/money";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function Home() {
         </div>
       </div>
 
-      <section className="container" style={{ marginTop: 48 }}>
+      <section className="container mt-4">
         <p className="kicker">Explore</p>
         <h2>Browse by service</h2>
         <div className="grid grid-3">
@@ -66,7 +67,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="container" style={{ marginTop: 56 }}>
+      <section className="container mt-4">
         <p className="kicker">How it works</p>
         <h2>Two minutes. Three steps. Your choice.</h2>
         <ol className="grid grid-3" style={{ listStyle: "none", padding: 0 }}>
@@ -76,7 +77,13 @@ export default async function Home() {
         </ol>
       </section>
 
-      <section className="container" style={{ marginTop: 40 }}>
+      <section className="container mt-4" aria-labelledby="money-h">
+        <p className="kicker">Open about money</p>
+        <h2 id="money-h">How Taxdar makes money</h2>
+        <MoneyRules />
+      </section>
+
+      <section className="container mt-4">
         <div className="grid grid-2">
           <div className="card">
             <h2>Registrations we check</h2>

@@ -31,7 +31,7 @@ const EMPTY: RegisterValues = {
 function ErrorText({ id, children }: { id: string; children?: string }) {
   if (!children) return null;
   return (
-    <div id={id} role="alert" className="small" style={{ color: "var(--bad)", marginTop: 8 }}>
+    <div id={id} role="alert" className="form-error">
       {children}
     </div>
   );

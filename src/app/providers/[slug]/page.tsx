@@ -102,7 +102,7 @@ export default async function ProviderPage({ params }: Params) {
         {p.org.isSynthetic && <span className="badge badge-neutral">Demo data: not a real business</span>}
       </div>
 
-      <div className="sidebar-layout" style={{ marginTop: 24, gridTemplateColumns: "1fr 320px" }}>
+      <div className="sidebar-layout sidebar-right mt-3">
         <div className="stack">
           <section className="card" aria-labelledby="reg">
             <h2 id="reg">Registrations and qualifications</h2>
