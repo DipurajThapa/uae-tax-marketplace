@@ -34,7 +34,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
           <table>
             <caption className="skip">Provider comparison</caption>
             <thead>
-              <tr><th scope="col">Provider</th>{providers.map((p) => <th scope="col" key={p.org.id}><Link href={`/providers/${p.org.slug}`}>{p.org.tradeName ?? p.org.legalName}</Link><br /><Link className="small" href={without(p.org.slug)}>Remove</Link></th>)}</tr>
+              <tr><th scope="col">Provider</th>{providers.map((p) => <th scope="col" key={p.org.id}><Link href={`/providers/${p.org.slug}`}>{p.org.tradeName ?? p.org.legalName}</Link>{p.org.isSynthetic && <> <span className="badge badge-neutral">Demo data</span></>}<br /><Link className="small" href={without(p.org.slug)}>Remove</Link></th>)}</tr>
             </thead>
             <tbody>
               <tr><th scope="row">Type</th>{providers.map((p) => <td key={p.org.id}>{ORG_KIND_LABELS[p.org.kind]}</td>)}</tr>

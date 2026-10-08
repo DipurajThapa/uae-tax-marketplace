@@ -244,6 +244,8 @@ export const users = pgTable(
     role: userRole("role").notNull(),
     organizationId: uuid("organization_id").references(() => organizations.id),
     disabled: boolean("disabled").notNull().default(false),
+    // Set when the user proves control of the inbox (verify link, or a set-password link sent there).
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -260,6 +262,7 @@ export const sessions = pgTable("sessions", {
 
 export const passwordTokens = pgTable("password_tokens", {
   id: text("id").primaryKey(), // sha256 of the emailed token
+  purpose: text("purpose").notNull().default("set_password"), // "set_password" | "verify_email"
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),

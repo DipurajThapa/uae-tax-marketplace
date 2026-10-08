@@ -54,7 +54,7 @@ async function seedReference() {
 async function ensureUser(email: string, name: string, role: "admin" | "reviewer" | "provider", password: string, organizationId: string | null = null) {
   const [u] = await db.select().from(s.users).where(eq(s.users.email, email));
   if (u) return u.id;
-  const [row] = await db.insert(s.users).values({ email, name, role, organizationId, passwordHash: await hashPassword(password) }).returning({ id: s.users.id });
+  const [row] = await db.insert(s.users).values({ email, name, role, organizationId, passwordHash: await hashPassword(password), emailVerifiedAt: new Date() }).returning({ id: s.users.id });
   return row!.id;
 }
 

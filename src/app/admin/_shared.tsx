@@ -1,3 +1,4 @@
+import { flashUrl, readFlash } from "@/lib/flash";
 import "server-only";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
@@ -17,10 +18,7 @@ export async function requireAdmin(): Promise<SessionUser> {
 
 export type Flash = { notice?: string; error?: string };
 
-function withParam(path: string, key: "notice" | "error", message: string): string {
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}${key}=${encodeURIComponent(message.slice(0, 300))}`;
-}
+const withParam = (path: string, key: "notice" | "error", message: string): string => flashUrl(path, key, message);
 
 /** POST-redirect-GET with a success message. */
 export function done(path: string, message: string): never {
@@ -108,7 +106,10 @@ export function maskEmail(email: string): string {
 
 export const pct = (n: number, base: number): string => (base > 0 ? `${((n / base) * 100).toFixed(1)}%` : "—");
 
-export function FlashMessages({ notice, error }: Flash) {
+export function FlashMessages({ notice: rawNotice, error: rawError }: Flash) {
+  // Only messages signed by our own redirects are shown (review L3).
+  const notice = readFlash(rawNotice);
+  const error = readFlash(rawError);
   return (
     <>
       {notice && (

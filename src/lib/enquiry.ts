@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import { consents, enquiries, enquiryRecipients, users, organizations, notifications, leadCharges } from "@/db/schema";
 import { validateAssessment, type Answers, type Assessment } from "./assessment";
@@ -114,7 +114,8 @@ export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: strin
     .select({ ref: enquiries.publicRef })
     .from(enquiries)
     .where(and(eq(enquiries.dedupeKey, dedupeKey), gte(enquiries.createdAt, since), inArray(enquiries.status, ["received", "routed"])));
-  if (existing) return { ok: true, ref: existing.ref, manageToken: null, duplicate: true };
+  // Never echo the earlier reference: anyone knowing a buyer's email could otherwise learn it (review L6).
+  if (existing) return { ok: true, ref: "", manageToken: null, duplicate: true };
 
   const names = chosen.map((c) => c.name);
   const consentText = enquiryConsentText(names);
@@ -124,7 +125,7 @@ export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: strin
   const recipientEmails = await db
     .select({ org: users.organizationId, email: users.email })
     .from(users)
-    .where(and(inArray(users.organizationId, selected), eq(users.role, "provider"), eq(users.disabled, false)));
+    .where(and(inArray(users.organizationId, selected), eq(users.role, "provider"), eq(users.disabled, false), isNotNull(users.emailVerifiedAt)));
 
   try {
     await db.transaction(async (tx) => {

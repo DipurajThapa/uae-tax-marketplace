@@ -283,6 +283,63 @@ describe("review fixes: medium findings", () => {
   });
 });
 
+describe("review follow-ups", () => {
+  const reg = (o: Record<string, unknown> = {}) => ({
+    legalName: "Verify Me Tax LLC", kind: "tax_agency", emirate: "dubai", publicEmail: "info@verifyme.example", services: ["vat-returns"],
+    jurisdictions: [], languages: ["en"], contactName: "Vee Owner", contactEmail: "vee@verifyme.example", password: "very-secure-password",
+    credentials: [], consent: true, ...o,
+  });
+
+  it("M9: a self-registered provider receives no enquiries until the email is confirmed", async () => {
+    const { submitEnquiry } = await import("@/lib/enquiry");
+    const { ENQUIRY_CONSENT_VERSION } = await import("@/lib/consent");
+    const { consumeEmailVerification } = await import("@/lib/claims");
+    const r = await registerProvider(db, reg(), ctx());
+    if (!r.ok) throw new Error("setup");
+    await db.update(s.organizations).set({ listingStatus: "published" }).where(eq(s.organizations.id, r.organizationId));
+    const send = () =>
+      submitEnquiry(
+        db,
+        {
+          answers: { services: ["vat-returns"], emirate: "dubai", companyStage: "established", revenueBand: "1m-10m", employeesBand: "10-49", vatRegistered: "yes", urgency: "this-month" },
+          contact: { contactName: "Bu Yer", contactEmail: `b${Math.random()}@x.example` },
+          selectedProviderIds: [r.organizationId],
+          consentGiven: true,
+          consentVersion: ENQUIRY_CONSENT_VERSION,
+          formStartedAt: now.getTime() - 60_000,
+        },
+        ctx(),
+      );
+    const before = await send();
+    expect(before.ok === false && before.code).toBe("ineligible_selection");
+
+    const [n] = await db.select().from(s.notifications).where(eq(s.notifications.template, "verify_email"));
+    const token = (n!.payload as { setPasswordToken: string }).setPasswordToken;
+    // A verification token cannot be used to set a password, and vice versa.
+    expect((await consumePasswordToken(db, token, "attacker-password-123", now)).ok).toBe(false);
+    expect((await consumeEmailVerification(db, token, now)).ok).toBe(true);
+    expect((await consumeEmailVerification(db, token, now)).ok).toBe(false);
+    expect((await send()).ok).toBe(true);
+  });
+
+  it("L5: registration does not reveal draft listings", async () => {
+    await makeOrg({ legalName: "Hidden Draft Firm", listingStatus: "draft" });
+    const r = await registerProvider(db, reg({ legalName: "Hidden Draft Firm", contactEmail: "x@hidden.example" }), ctx());
+    expect(r.ok).toBe(false);
+    expect("existingSlug" in r ? r.existingSlug : undefined).toBeUndefined();
+  });
+
+  it("L2: an active test subscription renews instead of falling back to free", async () => {
+    const { testBillingProvider, renewTestSubscriptions, effectivePlan } = await import("@/lib/billing");
+    const { org } = await makeOrg();
+    await testBillingProvider.subscribe(db, userActor((await makeUser("admin", "a@example.invalid")).id), org.id, "professional", new Date("2026-01-10"));
+    const later = new Date("2026-04-20");
+    expect((await effectivePlan(db, org.id, later)).code).toBe("free");
+    expect(await renewTestSubscriptions(db, later)).toBe(1);
+    expect((await effectivePlan(db, org.id, later)).code).toBe("professional");
+  });
+});
+
 describe("lawful data import", () => {
   const csv = "legal_name,kind,emirate,services,website\nNew Firm LLC,accounting_firm,dubai,bookkeeping|vat-returns,https://newfirm.example\nNew Firm L.L.C.,accounting_firm,dubai,bookkeeping,\nBad Row,unknown_kind,dubai,bookkeeping,\nExisting Copy,accounting_firm,sharjah,bookkeeping,https://firm1.example\n";
 

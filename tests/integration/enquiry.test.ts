@@ -92,7 +92,7 @@ describe("scenario 2: a business submits a qualified, consented enquiry", () => 
     expect(first.ok && second.ok).toBe(true);
     if (first.ok && second.ok) {
       expect(second.duplicate).toBe(true);
-      expect(second.ref).toBe(first.ref);
+      expect(second.ref).toBe(""); // review L6: the earlier reference is never echoed
     }
     expect(await db.select().from(s.enquiries)).toHaveLength(1);
     expect(await db.select().from(s.leadCharges)).toHaveLength(1);

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { flashUrl } from "@/lib/flash";
 import { getDb } from "@/db/client";
 import { registerProvider } from "@/lib/claims";
 import { clientIp, login } from "@/lib/session";
@@ -93,10 +94,12 @@ export async function register(prev: RegisterState, formData: FormData): Promise
   }
 
   const signedIn = await login(values.contactEmail, password);
-  if (!signedIn.ok) redirect(`/login?error=${encodeURIComponent("Your listing was created and is in review. Please sign in.")}`);
+  if (!signedIn.ok) redirect(flashUrl("/login", "notice", "Your listing was created and is in review. Please sign in."));
   redirect(
-    `/provider?notice=${encodeURIComponent(
+    flashUrl(
+      "/provider",
+      "notice",
       "Thank you. Your listing is in review: it is not visible in the directory yet. We will check your details and registrations before publishing it.",
-    )}`,
+    ),
   );
 }

@@ -32,26 +32,30 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-05 | Live payment adapter (Stripe Billing or UAE PSP) behind the `BillingProvider` interface, with signed webhooks | BLOCKED (OPS-02) | test-mode checkout E2E |
 | ENG-06 | SMTP/API mail transport | BLOCKED (OPS-03) | outbox sends; bounces handled |
 | ENG-07 | Individual professionals: add people + FTA_TAX_AGENT submissions in provider UI | NOT STARTED | provider adds a person; reviewer verifies |
-| ENG-08 | Self-service password reset (email link) | NOT STARTED | E2E reset flow |
+| ENG-08 | Self-service password reset (email link) | COMPLETE | integration test "password reset" |
 | ENG-09 | Admin article editor (guides CMS UI; gate exists in `articles.ts`) | NOT STARTED | publish blocked without reviewer + Tier-1 source |
 | ENG-10 | Provider monthly lead-quality report email + dashboard analytics (paid feature) | NOT STARTED | report renders from data |
 | ENG-11 | Lighthouse CI budget in CI | NOT STARTED | LCP < 2.5 s mobile on key pages |
 | ENG-12 | Arabic UI (RTL) | DEFERRED | — |
 | ENG-13 | MFA for staff accounts | NOT STARTED | TOTP for admin/reviewer |
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
+| ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | NOT STARTED | CSP has no unsafe-inline; E2E passes |
 
 Items from the adversarial review are added below when it reports (see `EVIDENCE_LOG.md`).
 
 ## Review follow-ups (adversarial review 2026-10-08)
-| ID | Finding | Status | Acceptance |
+| ID | Finding | Status | Evidence / note |
 |---|---|---|---|
-| RV-M9 | Self-registered providers are "claimed" without email verification | NOT STARTED | Account email confirmed before any lead routing |
-| RV-M10 | Consent recorded under a draft version; store full text | BLOCKED (LG-03) | Final text version stored verbatim |
-| RV-L2 | Test subscriptions do not renew; periods vs calendar months | NOT STARTED | Renewal job; period-aligned counting |
-| RV-L3 | `?error=`/`?notice=` show arbitrary text (escaped, so no XSS) | NOT STARTED | Messages selected by code |
-| RV-L4 | Logout over GET | NOT STARTED | POST form |
-| RV-L5 | Registration reveals existing accounts and draft slugs | NOT STARTED | Generic message, emailed instructions |
-| RV-L6 | Duplicate check reveals another buyer's reference | NOT STARTED | Duplicate response shows no ref |
-| RV-L8 | No custom error page | NOT STARTED | Branded 500 page |
-| RV-L9 | Migration 0002 adds NOT NULL without a default | NOT STARTED | Safe on non-empty DBs (pre-launch, no data yet) |
-| RV-L10 | `//host` markdown links; CSP `unsafe-inline`; demo badge on compare; sponsored ignore some filters | NOT STARTED | Each fixed or accepted |
+| RV-M9 | Self-registered providers are "claimed" without email verification | COMPLETE | `users.email_verified_at`; a verify link goes out at registration; unverified accounts never match or receive mail; token purposes are separate. Test "M9" |
+| RV-M10 | Consent recorded under a draft version; store full text | BLOCKED (LG-03) | Needs counsel-approved text |
+| RV-L2 | Test subscriptions do not renew | COMPLETE | `renewTestSubscriptions` in the hourly worker. Test "L2". Leads are still counted by calendar month (D-007) |
+| RV-L3 | `?error=`/`?notice=` show arbitrary text | COMPLETE | HMAC-signed flash messages (`src/lib/flash.ts`). Unit + E2E "L3" |
+| RV-L4 | Logout over GET | COMPLETE | POST form with an Origin check; GET is a no-op. E2E "L4" |
+| RV-L5 | Registration reveals existing accounts and draft slugs | COMPLETE | Neutral wording; only published slugs are linked. Test "L5" |
+| RV-L6 | Duplicate check reveals another buyer's reference | COMPLETE | Duplicate response carries no reference. Integration dedupe test |
+| RV-L8 | No custom error page | COMPLETE | `app/error.tsx`, `app/global-error.tsx` |
+| RV-L9 | Migration 0002 adds NOT NULL without a default | COMPLETE | Fills existing rows, then drops the default (edited pre-launch; no production DB exists) |
+| RV-L10a | `//host` markdown links treated as internal | COMPLETE | Unit test |
+| RV-L10b | Demo badge missing on compare | COMPLETE | — |
+| RV-L10c | Sponsored block ignores some filters | COMPLETE | Hidden when keyword, type, language, zone or verification filters are active |
+| RV-L10d | CSP allows `'unsafe-inline'` scripts | ACCEPTED (tracked) | Needs nonce-based CSP via middleware; do before launch (ENG-15) |

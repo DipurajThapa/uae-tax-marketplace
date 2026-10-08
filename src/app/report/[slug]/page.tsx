@@ -5,6 +5,7 @@ import { openDispute } from "@/lib/verification";
 import { clientIp } from "@/lib/session";
 import { CREDENTIAL_BY_CODE } from "@/lib/taxonomy";
 import { Field } from "@/components/ui";
+import { flashUrl, readFlash } from "@/lib/flash";
 
 export const metadata = { title: "Report incorrect information", robots: { index: false } };
 
@@ -32,8 +33,8 @@ export default async function Report({ params, searchParams }: { params: Promise
     } catch {
       outcome = "invalid";
     }
-    if (outcome === "rate") redirect(`/report/${slug}?error=${encodeURIComponent("Too many reports from this connection. Try again later.")}`);
-    if (outcome === "invalid") redirect(`/report/${slug}?error=${encodeURIComponent("Please check the form: a valid email and at least 10 characters of detail are needed.")}`);
+    if (outcome === "rate") redirect(flashUrl(`/report/${slug}`, "error", "Too many reports from this connection. Try again later."));
+    if (outcome === "invalid") redirect(flashUrl(`/report/${slug}`, "error", "Please check the form: a valid email and at least 10 characters of detail are needed."));
     redirect(`/report/${slug}?sent=1`);
   }
   if (sp.sent)
@@ -47,7 +48,7 @@ export default async function Report({ params, searchParams }: { params: Promise
     <div className="container narrow">
       <h1>Report incorrect information</h1>
       <p>About: <strong>{p.org.tradeName ?? p.org.legalName}</strong></p>
-      {sp.error && <div className="alert alert-bad" role="alert">{sp.error}</div>}
+      {readFlash(sp.error) && <div className="alert alert-bad" role="alert">{readFlash(sp.error)}</div>}
       <form action={send} className="card">
         <Field label="What is wrong?" name="reason">
           <select id="reason" name="reason">

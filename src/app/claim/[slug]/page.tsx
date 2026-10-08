@@ -4,6 +4,7 @@ import { getProviderBySlug } from "@/lib/providers";
 import { submitClaim } from "@/lib/claims";
 import { clientIp } from "@/lib/session";
 import { Field } from "@/components/ui";
+import { signFlash, readFlash } from "@/lib/flash";
 
 export const metadata = { title: "Claim this listing", robots: { index: false } };
 
@@ -12,7 +13,8 @@ export default async function Claim({ params, searchParams }: { params: Promise<
   const sp = await searchParams;
   const p = await getProviderBySlug(getDb(), slug);
   if (!p) notFound();
-  const errors: Record<string, string> = sp.e ? safeJson(sp.e) : {};
+  const signed = readFlash(sp.e);
+  const errors: Record<string, string> = signed ? safeJson(signed) : {};
   const name = p.org.tradeName ?? p.org.legalName;
 
   async function send(formData: FormData) {
@@ -28,7 +30,7 @@ export default async function Claim({ params, searchParams }: { params: Promise<
       },
       { ip: await clientIp(), now: new Date() },
     );
-    if (!res.ok) redirect(`/claim/${slug}?e=${encodeURIComponent(JSON.stringify(res.errors))}`);
+    if (!res.ok) redirect(`/claim/${slug}?e=${encodeURIComponent(signFlash(JSON.stringify(res.errors)))}`);
     redirect(`/claim/${slug}?sent=1`);
   }
 

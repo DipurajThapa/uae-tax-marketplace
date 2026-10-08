@@ -36,7 +36,7 @@ export async function resetDb() {
 }
 
 export async function makeUser(role: "admin" | "reviewer" | "provider", email: string, organizationId: string | null = null) {
-  const [u] = await db().insert(s.users).values({ email, name: email, role, organizationId, passwordHash: await hashPassword("password-123456") }).returning();
+  const [u] = await db().insert(s.users).values({ email, name: email, role, organizationId, passwordHash: await hashPassword("password-123456"), emailVerifiedAt: new Date() }).returning();
   return u!;
 }
 
