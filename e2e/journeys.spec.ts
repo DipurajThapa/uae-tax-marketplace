@@ -195,6 +195,22 @@ test("9. unauthorised users cannot reach privileged areas", async ({ page }) => 
   await expect(page).toHaveURL(/\/forbidden/); // admin-only section
 });
 
+test("ENG-07: a provider adds a person and submits an individual registration", async ({ page }) => {
+  await signIn(page, "books@e2e.invalid");
+  await page.goto("/provider/people");
+  await page.getByLabel("Full name").fill("Noor Al Mansoori");
+  await page.getByLabel("Title (optional)").fill("Tax Associate");
+  await page.getByRole("button", { name: "Add person" }).click();
+  await expect(page.getByText("Person added.")).toBeVisible();
+  await page.getByLabel("Registration or qualification").selectOption("FTA_TAX_AGENT");
+  await page.getByLabel("Registration or membership number").fill("E2E-TAAN-77");
+  await page.getByLabel("Where can the reviewer check it?").fill("FTA register search by agent number");
+  await page.getByRole("button", { name: "Submit for review" }).click();
+  await expect(page.getByText("Submitted for review")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "In review" })).toBeVisible();
+  await signOut(page);
+});
+
 test("SEO: crawlers blocked before launch, pages render without JavaScript", async ({ browser, request }) => {
   const robots = await (await request.get("/robots.txt")).text();
   expect(robots).toMatch(/Disallow: \//);

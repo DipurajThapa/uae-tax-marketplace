@@ -1,7 +1,7 @@
 import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DB } from "@/db/client";
-import { credentials, credentialTypes, disputes, credentialSubmissions, organizations, users } from "@/db/schema";
+import { credentials, credentialTypes, disputes, credentialSubmissions, organizations, users, professionals } from "@/db/schema";
 import { audit, PUBLIC, SYSTEM, type Actor } from "./audit";
 import { rateLimit } from "./ratelimit";
 import { keyedHash } from "./crypto";
@@ -35,7 +35,13 @@ export async function verifyCredential(db: DB, actor: Actor, credentialId: strin
     if (c.c.status === "disputed") throw new Error("Resolve the open dispute first");
     const [reviewer] = await tx.select({ org: users.organizationId, role: users.role }).from(users).where(eq(users.id, actor.userId!));
     if (!reviewer || (reviewer.role !== "admin" && reviewer.role !== "reviewer")) throw new Error("Only staff can verify credentials");
-    if (reviewer.org && reviewer.org === c.c.organizationId) throw new Error("Staff cannot verify their own organisation's credentials");
+    // The credential's firm: its own organisation, or the employer of the person who holds it.
+    let subjectOrg = c.c.organizationId;
+    if (!subjectOrg && c.c.professionalId) {
+      const [person] = await tx.select({ org: professionals.organizationId }).from(professionals).where(eq(professionals.id, c.c.professionalId));
+      subjectOrg = person?.org ?? null;
+    }
+    if (reviewer.org && reviewer.org === subjectOrg) throw new Error("Staff cannot verify their own organisation's credentials");
     let recheck = addDays(now, c.recheckDays);
     const expires = v.expiresAt ?? c.c.expiresAt;
     if (expires && expires <= now) throw new Error("Credential has already expired");
@@ -183,7 +189,11 @@ export async function approveSubmission(db: DB, actor: Actor, submissionId: stri
     if (!credentialId) {
       const [c] = await tx
         .insert(credentials)
-        .values({ credentialType: s.credentialType, organizationId: s.organizationId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" })
+        .values(
+          s.professionalId
+            ? { credentialType: s.credentialType, professionalId: s.professionalId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" }
+            : { credentialType: s.credentialType, organizationId: s.organizationId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" },
+        )
         .returning({ id: credentials.id });
       credentialId = c!.id;
     }

@@ -304,6 +304,8 @@ export const credentialSubmissions = pgTable("credential_submissions", {
   submittedBy: uuid("submitted_by")
     .notNull()
     .references(() => users.id),
+  // Set when the registration belongs to an individual at the firm (ENG-07).
+  professionalId: uuid("professional_id").references(() => professionals.id, { onDelete: "cascade" }),
   credentialType: text("credential_type")
     .notNull()
     .references(() => credentialTypes.code),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { credentialSubmissions, credentials, organizations, users } from "@/db/schema";
+import { credentialSubmissions, credentials, organizations, users, professionals } from "@/db/schema";
 import { approveSubmission, rejectSubmission, credentialsDueSoon, sweepStaleCredentials } from "@/lib/verification";
 import { userActor } from "@/lib/audit";
 import { CREDENTIAL_BY_CODE } from "@/lib/taxonomy";
@@ -57,9 +57,10 @@ export default async function AdminVerification({ searchParams }: { searchParams
   const now = new Date();
   const [pending, dueSoon, expired] = await Promise.all([
     db
-      .select({ s: credentialSubmissions, org: organizations, submitter: { id: users.id, email: users.email, name: users.name } })
+      .select({ s: credentialSubmissions, org: organizations, person: { id: professionals.id, fullName: professionals.fullName }, submitter: { id: users.id, email: users.email, name: users.name } })
       .from(credentialSubmissions)
       .innerJoin(organizations, eq(organizations.id, credentialSubmissions.organizationId))
+      .leftJoin(professionals, eq(professionals.id, credentialSubmissions.professionalId))
       .innerJoin(users, eq(users.id, credentialSubmissions.submittedBy))
       .where(eq(credentialSubmissions.state, "pending"))
       .orderBy(credentialSubmissions.createdAt),
@@ -80,10 +81,10 @@ export default async function AdminVerification({ searchParams }: { searchParams
       <section aria-labelledby="pending">
         <h2 id="pending">Pending credential submissions ({pending.length})</h2>
         {pending.length === 0 && <p className="muted">No pending submissions.</p>}
-        {pending.map(({ s, org, submitter }) => (
+        {pending.map(({ s, org, person, submitter }) => (
           <article key={s.id} className="card" aria-labelledby={`sub-${s.id}`} style={{ marginBottom: 16 }}>
             <h3 id={`sub-${s.id}`}>
-              {credName(s.credentialType)} · <Link href={`/admin/providers/${org.id}`}>{org.tradeName ?? org.legalName}</Link>
+              {credName(s.credentialType)} · {person?.fullName ? <>{person.fullName} at </> : null}<Link href={`/admin/providers/${org.id}`}>{org.tradeName ?? org.legalName}</Link>
             </h3>
             <dl className="dl small">
               <dt>Registration no.</dt><dd>{s.registrationNumber}</dd>
