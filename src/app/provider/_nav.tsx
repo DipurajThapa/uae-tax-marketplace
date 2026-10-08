@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/provider/people", label: "People" },
   { href: "/provider/insights", label: "Insights" },
   { href: "/provider/billing", label: "Plan & billing" },
+  { href: "/provider/security", label: "Security" },
 ];
 
 export function ProviderNav() {

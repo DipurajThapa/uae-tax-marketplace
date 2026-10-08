@@ -7,8 +7,17 @@ import { audit, userActor, type Actor } from "./audit";
 import { keyedHash, randomToken, sha256 } from "./crypto";
 import { generateTotpSecret, verifyTotp } from "./totp";
 
-/** Staff roles must use a second factor (ENG-13). */
+/** Staff roles must use a second factor (ENG-13); providers may turn one on (ENG-16). */
 export const MFA_REQUIRED_ROLES = new Set(["admin", "reviewer"]);
+
+/**
+ * The stage a new session starts at: a code is needed whenever the account has a factor; staff
+ * without one must set it up first; everyone else is signed in.
+ */
+export function initialStage(role: string, totpEnabledAt: Date | null): "full" | "mfa" | "enroll" {
+  if (totpEnabledAt) return "mfa";
+  return MFA_REQUIRED_ROLES.has(role) ? "enroll" : "full";
+}
 
 const key = () => createHash("sha256").update(`totp-secret-key:${config.appSecret}`).digest();
 
@@ -153,14 +162,34 @@ export async function rotateSession(db: DB, sessionId: string, stage: "full"): P
   return token;
 }
 
+/**
+ * Turns off an optional factor (providers only). Needs a current code, so a stolen session alone
+ * cannot remove it. Staff can never turn theirs off.
+ */
+export async function disableMfa(db: DB, userId: string, code: string, ctx: MfaContext): Promise<"ok" | "bad_code" | "required"> {
+  const now = ctx.now ?? new Date();
+  const result = await db.transaction(async (tx) => {
+    const [u] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
+    if (!u) return "bad_code" as const;
+    if (MFA_REQUIRED_ROLES.has(u.role)) return "required" as const;
+    if (!u.totpSecretEnc || !u.totpEnabledAt) return "bad_code" as const;
+    if ((await checkCode(tx, u, u.totpSecretEnc, code, { ip: ctx.ip, now })) === null) return "bad_code" as const;
+    await tx.update(users).set({ totpSecretEnc: null, totpEnabledAt: null, totpLastStep: null }).where(eq(users.id, userId));
+    return "ok" as const;
+  });
+  if (result === "ok") await audit(db, userActor(userId), "user.mfa_disabled", "user", userId);
+  return result;
+}
+
 /** Admin recovery: clears another user's factor and ends their sessions; they enrol again at next sign-in. */
 export async function resetMfa(db: DB, actor: Actor, userId: string) {
   if (!actor.userId) throw new Error("A named admin is required");
   if (actor.userId === userId) throw new Error("Ask another admin to reset your two-factor authentication");
   const [admin] = await db.select({ role: users.role }).from(users).where(eq(users.id, actor.userId));
   if (admin?.role !== "admin") throw new Error("Only admins can reset two-factor authentication");
-  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
-  if (!target || !MFA_REQUIRED_ROLES.has(target.role)) throw new Error("Only a staff account's two-factor authentication can be reset");
+  const [target] = await db.select({ role: users.role, totpEnabledAt: users.totpEnabledAt }).from(users).where(eq(users.id, userId));
+  if (!target) throw new Error("Account not found");
+  if (!MFA_REQUIRED_ROLES.has(target.role) && !target.totpEnabledAt) throw new Error("This account has no two-factor authentication to reset");
   await db.transaction(async (tx) => {
     await tx.update(users).set({ totpSecretEnc: null, totpEnabledAt: null, totpLastStep: null }).where(eq(users.id, userId));
     await tx.delete(sessions).where(eq(sessions.userId, userId));

@@ -13,7 +13,7 @@
 | R-08 | Postgres-only queueing/rate limiting has throughput limits | Low (at MVP scale) | Eng | Fine for thousands of enquiries/day; move to Redis/queue if the outbox lags (alert on `/api/health` degraded) |
 | R-09 | `capacityRemaining` does one plan query per candidate | Closed | Eng | Batched in ENG-04: p95 242 ms at 5,000 listings |
 | R-10 | Commercial assumptions (prices, caps) are untested | High (commercial) | Owner | D-007 placeholders; validate with provider interviews before enabling billing |
-| R-11 | Provider accounts have password-only sign-in (accepted for now) | Medium | Eng | Providers see only their own enquiries; login and per-account rate limits; email verification. ENG-16 adds optional TOTP before launch if the owner wants it |
+| R-11 | Provider accounts may still use password-only sign-in | Low | Owner | ENG-16 offers optional TOTP. Making it mandatory for providers is an owner decision (support load vs. risk) |
 
 ## Learnings (from this build)
 - **Next.js metadata:** a page returning `robots: undefined` silently drops the layout's `noindex`. Found by the E2E SEO test; fixed with `robotsFor()` that always returns an explicit value (D-013).

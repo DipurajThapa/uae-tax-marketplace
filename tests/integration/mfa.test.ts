@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { eq } from "drizzle-orm";
 import { getDb, closeDb } from "@/db/client";
 import * as s from "@/db/schema";
-import { beginEnrollment, confirmEnrollment, verifyMfa, resetMfa, encryptSecret, decryptSecret, pendingSecret, rotateSession } from "@/lib/mfa";
+import { beginEnrollment, confirmEnrollment, verifyMfa, resetMfa, encryptSecret, decryptSecret, pendingSecret, rotateSession, disableMfa, initialStage } from "@/lib/mfa";
 import { sha256 } from "@/lib/crypto";
 import { totp } from "@/lib/totp";
 import { userActor } from "@/lib/audit";
-import { resetDb, makeUser } from "./helpers";
+import { resetDb, makeUser, makeOrg } from "./helpers";
 
 const db = getDb();
 beforeEach(resetDb);
@@ -107,8 +107,8 @@ describe("ENG-13 staff two-factor authentication", () => {
     await session(b.id, "sess-b", "full");
     await expect(resetMfa(db, userActor(b.id), b.id)).rejects.toThrow(/another admin/);
     await expect(resetMfa(db, userActor(rev.id), b.id)).rejects.toThrow(/Only admins/);
-    await expect(resetMfa(db, userActor(a.id), prov.id)).rejects.toThrow(/staff account/);
-    await expect(resetMfa(db, userActor(a.id), "00000000-0000-0000-0000-000000000000")).rejects.toThrow(/staff account/);
+    await expect(resetMfa(db, userActor(a.id), prov.id)).rejects.toThrow(/no two-factor/);
+    await expect(resetMfa(db, userActor(a.id), "00000000-0000-0000-0000-000000000000")).rejects.toThrow(/not found/);
     await resetMfa(db, userActor(a.id), b.id);
     const [row] = await db.select().from(s.users).where(eq(s.users.id, b.id));
     expect(row!.totpEnabledAt).toBeNull();
@@ -120,5 +120,48 @@ describe("ENG-13 staff two-factor authentication", () => {
     await db.insert(s.sessions).values({ id: "sess-default", userId: u.id, expiresAt: new Date(Date.now() + 3600_000) });
     const [row] = await db.select().from(s.sessions).where(eq(s.sessions.id, "sess-default"));
     expect(row!.stage).toBe("mfa");
+  });
+});
+
+describe("ENG-16 optional two-factor for providers", () => {
+  it("sessions start at the right stage for each role", () => {
+    expect(initialStage("provider", null)).toBe("full");
+    expect(initialStage("provider", new Date())).toBe("mfa");
+    expect(initialStage("admin", null)).toBe("enroll");
+    expect(initialStage("reviewer", new Date())).toBe("mfa");
+  });
+
+  it("a provider turns a factor on and off; turning it off needs a current code", async () => {
+    const { org } = await makeOrg();
+    const p = await makeUser("provider", "p@example.invalid", org.id);
+    const mine = await session(p.id, "sess-p", "full");
+    const other = await session(p.id, "sess-p2", "full");
+    const secret = await beginEnrollment(db, p.id, mine);
+    const now = new Date();
+    expect(await confirmEnrollment(db, p.id, mine, totp(secret, now), ctx(now))).toBe(true);
+    expect(await db.select().from(s.sessions).where(eq(s.sessions.id, other))).toHaveLength(0);
+    const later = new Date(now.getTime() + 30_000);
+    const wrong = totp(secret, later) === "000000" ? "111111" : "000000";
+    expect(await disableMfa(db, p.id, wrong, ctx(later))).toBe("bad_code");
+    expect(await disableMfa(db, p.id, totp(secret, now), ctx(later))).toBe("bad_code"); // replayed step
+    expect(await disableMfa(db, p.id, totp(secret, later), ctx(later))).toBe("ok");
+    const [row] = await db.select().from(s.users).where(eq(s.users.id, p.id));
+    expect(row!.totpEnabledAt).toBeNull();
+    expect(row!.totpSecretEnc).toBeNull();
+  });
+
+  it("staff cannot turn their factor off, and an admin can reset a provider's", async () => {
+    const admin = await makeUser("admin", "a@example.invalid");
+    const rev = await makeUser("reviewer", "r@example.invalid");
+    const secret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+    await db.update(s.users).set({ totpSecretEnc: encryptSecret(secret), totpEnabledAt: new Date() }).where(eq(s.users.id, rev.id));
+    const now = new Date();
+    expect(await disableMfa(db, rev.id, totp(secret, now), ctx(now))).toBe("required");
+    const { org } = await makeOrg();
+    const p = await makeUser("provider", "p@example.invalid", org.id);
+    await db.update(s.users).set({ totpSecretEnc: encryptSecret(secret), totpEnabledAt: new Date() }).where(eq(s.users.id, p.id));
+    await resetMfa(db, userActor(admin.id), p.id);
+    const [row] = await db.select().from(s.users).where(eq(s.users.id, p.id));
+    expect(row!.totpEnabledAt).toBeNull();
   });
 });

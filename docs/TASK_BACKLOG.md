@@ -37,7 +37,7 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-10 | Provider dashboard analytics (paid feature) | COMPLETE (dashboard); monthly email waits on OPS-03 | integration "ENG-10" + E2E |
 | ENG-11 | Lighthouse CI budget in CI | COMPLETE | 5 pages, scores 0.98–0.99, LCP ≤ 2.2 s (mobile, simulated) |
 | ENG-12 | Arabic UI (RTL) | DEFERRED | — |
-| ENG-16 | Optional MFA for provider accounts | NOT STARTED (accepted risk R-11) | providers can enrol TOTP from their dashboard |
+| ENG-16 | Optional MFA for provider accounts | COMPLETE | `/provider/security`; integration "ENG-16" + E2E |
 | ENG-13 | MFA for staff accounts | COMPLETE | RFC 6238 vectors, integration, E2E |
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
 | ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | COMPLETE | E2E "ENG-15": zero CSP violations |
@@ -77,4 +77,4 @@ Items from the adversarial review are added below when it reports (see `EVIDENCE
 | RV2-L4 | Rolled-over dates (2026-02-31) accepted | COMPLETE | `parseIsoDate` shared by forms and schemas. Test in articles |
 | RV2-L5 | Session not rotated after MFA; lockout counted successes; enroll page could 500 | COMPLETE | `rotateSession`; failures-only limits per user+IP (5/15 min) and per user (20/h); enroll page signs out if MFA is already on. Tests "L5" |
 | RV2-L6 | No UI for MFA reset; target not validated | COMPLETE | `/admin/staff` (admin-only, identity-confirmed checkbox); reset only for staff accounts. Test in mfa |
-| RV2-L6b | Provider accounts have no MFA | ACCEPTED RISK (R-11) | ENG-16 |
+| RV2-L6b | Provider accounts have no MFA | COMPLETE | ENG-16: optional TOTP; turning it off needs a current code; admins can reset it at `/admin/staff` |

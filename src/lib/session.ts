@@ -8,7 +8,7 @@ import { randomToken, sha256, verifyPassword, keyedHash } from "./crypto";
 import { normalizeEmail } from "./text";
 import { rateLimit } from "./ratelimit";
 import { audit, userActor, PUBLIC } from "./audit";
-import { MFA_REQUIRED_ROLES, rotateSession } from "./mfa";
+import { initialStage, rotateSession } from "./mfa";
 
 const COOKIE = "sid";
 const TTL_HOURS = 12;
@@ -20,7 +20,7 @@ export type SessionUser = {
   name: string;
   role: "admin" | "reviewer" | "provider";
   organizationId: string | null;
-  /** "full" unless a staff user still has to pass or set up two-factor authentication (ENG-13). */
+  /** "full" unless the user still has to pass two-factor authentication, or (staff) set it up (ENG-13/16). */
   stage: SessionStage;
   sessionId: string;
 };
@@ -54,7 +54,7 @@ export async function login(emailRaw: string, password: string): Promise<{ ok: t
     return { ok: false, error: "Email or password is incorrect" };
   }
   const token = randomToken();
-  const stage: SessionStage = MFA_REQUIRED_ROLES.has(u.role) ? (u.totpEnabledAt ? "mfa" : "enroll") : "full";
+  const stage: SessionStage = initialStage(u.role, u.totpEnabledAt);
   await db.insert(sessions).values({ id: sha256(token), userId: u.id, stage, expiresAt: new Date(Date.now() + TTL_HOURS * 3600_000) });
   await setCookie(token, TTL_HOURS * 3600);
   await audit(db, userActor(u.id), "auth.login", "user", u.id);
