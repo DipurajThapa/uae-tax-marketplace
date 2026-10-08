@@ -12,7 +12,8 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | LG-04 | Counsel: do subscription/per-lead/sponsored fees create conduct risk for FTA agents (Decision 1/2024)? | Counsel | BLOCKED | Opinion; adjust plans |
 | LG-05 | Counsel: listing non-registered consultants next to registered agents (Tax Procedures law) | Counsel | BLOCKED | Opinion |
 | LG-06 | Privacy notice and terms are DRAFTS (`/privacy`, `/terms`) | Counsel | BLOCKED | Approved text |
-| BIZ-01 | Brand name and domain (working name "TaxPro Directory UAE") | Owner | BLOCKED | Decide; purchase needs approval |
+| LG-07 | Counsel: may the legal trade name and trademark contain "Tax" for a directory/platform licence (activity fit, regulator approval), and does the brand plus descriptor avoid implied FTA/MoF affiliation? (`docs/research/brand-name-options-2026-10.md`) | Counsel | BLOCKED | Written opinion |
+| BIZ-01 | Brand name and domain (working name "TaxPro Directory UAE"); options in `docs/research/brand-name-options-2026-10.md` (pick: Taxdar) | Owner | BLOCKED | Decide; registry and domain checks; purchase needs approval |
 | BIZ-02 | Real prices, caps, refund policy (D-007 placeholders) | Owner | BLOCKED | Validate with 10+ provider interviews |
 | BIZ-03 | Ask the FTA and MoF for permission or a data feed for register data | Owner | BLOCKED | Letter (outreach approval) |
 | BIZ-04 | Real supply: onboard first providers via self-listing (outreach needs approval) | Owner | BLOCKED | Approve outreach plan |
