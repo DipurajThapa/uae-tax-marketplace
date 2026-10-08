@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { archivoDisplay } from "./fonts";
 import { config } from "@/lib/config";
 import { BRAND } from "@/lib/brand";
 import { currentUser } from "@/lib/session";
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   return (
-    <html lang="en">
+    <html lang="en" className={archivoDisplay.variable}>
       <body>
         <a href="#main" className="skip">Skip to content</a>
         {config.allowSyntheticData && (
@@ -25,6 +26,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="container"><strong>Demo environment.</strong> Listings marked “(Demo)” are synthetic test data, not real businesses.</div>
           </div>
         )}
+        <div className="topline">
+          <div className="container">
+            <span className="mono long">{BRAND.independence}</span>
+            <span className="mono short">Independent. Not affiliated with the FTA or MoF.</span>
+            <span lang="ar" dir="rtl">{BRAND.nameAr}</span>
+          </div>
+        </div>
         <header className="site-header">
           <div className="container bar">
             <Link href="/" className="logo"><LogoMark />{BRAND.name}</Link>
@@ -49,9 +57,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <footer className="site-footer">
           <div className="container cols">
             <div>
-              <strong>{BRAND.name}</strong> <span lang="ar" dir="rtl">{BRAND.nameAr}</span>
+              <p className="footer-brand">{BRAND.name} <span lang="ar" dir="rtl" style={{ fontSize: "1.2rem", textTransform: "none" }}>{BRAND.nameAr}</span></p>
               <p className="small">{BRAND.name} is a {BRAND.descriptor}. We do not give tax advice. Registration badges appear only after we check them against an official source or document.</p>
-              <p className="small"><strong>{BRAND.independence}</strong></p>
+              <p className="small independence">{BRAND.independence}</p>
             </div>
             <div>
               <ul>

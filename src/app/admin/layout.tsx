@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { SectionNav } from "@/components/section-nav";
 import { requireRole } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
@@ -25,16 +25,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const links = SECTIONS.filter((s) => !s.adminOnly || user.role === "admin");
   return (
     <div className="container">
-      <p className="small muted" style={{ margin: "0 0 8px" }}>
+      <p className="mono muted" style={{ margin: "0 0 10px" }}>
         Back office · signed in as {user.name} ({user.role})
       </p>
-      <nav className="admin-nav" aria-label="Admin sections">
-        {links.map((s) => (
-          <Link key={s.href} href={s.href}>
-            {s.label}
-          </Link>
-        ))}
-      </nav>
+      <SectionNav items={links.map(({ href, label }) => ({ href, label }))} label="Admin sections" root="/admin" />
       {children}
     </div>
   );
