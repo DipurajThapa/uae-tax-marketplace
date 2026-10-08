@@ -18,7 +18,9 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
     "lint:copy": "tsx scripts/lint-copy.ts",
-    "check": "npm run typecheck && npm run lint && npm run lint:copy && npm test"
+    "check": "npm run typecheck && npm run lint && npm run lint:copy && npm test",
+    "perf:budget": "node scripts/perf-budget.mjs",
+    "bench:matching": "tsx scripts/bench-matching.ts"
   },
   "author": "",
   "license": "UNLICENSED",
@@ -43,9 +45,11 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.0",
+    "lighthouse": "^12.8.2",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wait-on": "^9.5.1"
   },
   "private": true,
   "engines": {

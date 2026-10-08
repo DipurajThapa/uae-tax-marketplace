@@ -245,6 +245,15 @@ test("ENG-09: an admin writes, gates and publishes a guide; reviewers cannot pub
   await signOut(page);
 });
 
+test("ENG-10: insights show basic counts on the free plan and point to paid figures", async ({ page }) => {
+  await signIn(page, "books@e2e.invalid");
+  await page.goto("/provider/insights");
+  await expect(page.getByText("Enquiries received")).toBeVisible();
+  await expect(page.getByText("Profile views", { exact: true })).toHaveCount(0); // the tile, not the upgrade note
+  await expect(page.getByText("included in paid plans")).toBeVisible();
+  await signOut(page);
+});
+
 test("SEO: crawlers blocked before launch, pages render without JavaScript", async ({ browser, request }) => {
   const robots = await (await request.get("/robots.txt")).text();
   expect(robots).toMatch(/Disallow: \//);

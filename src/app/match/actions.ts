@@ -36,6 +36,7 @@ export async function findMatchesAction(answers: Answers): Promise<FindResult> {
     return { ok: true, matches: [], noMatchReasons: explainNoMatch(result) };
   }
   await track(db, "matches_shown", { count: result.matches.length, service: v.value.services[0] });
+  for (const m of result.matches) await track(db, "provider_matched", { orgId: m.candidateId, score: m.score });
   const views: MatchView[] = [];
   for (const m of result.matches) {
     const detail = await getProviderById(db, m.candidateId);

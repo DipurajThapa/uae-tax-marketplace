@@ -58,13 +58,34 @@ export async function leadsThisPeriod(db: DB, organizationIds: string[], now: Da
   return out;
 }
 
+/** Plans in force for many organisations in one query (ENG-04). Same rules as effectivePlan. */
+export async function effectivePlans(db: DB, organizationIds: string[], now: Date): Promise<Map<string, PlanDef>> {
+  const out = new Map<string, PlanDef>();
+  if (organizationIds.length === 0) return out;
+  const rows = await db
+    .select({ plan: plans, sub: subscriptions })
+    .from(subscriptions)
+    .innerJoin(plans, eq(plans.code, subscriptions.planCode))
+    .where(
+      and(
+        inArray(subscriptions.organizationId, organizationIds),
+        inArray(subscriptions.status, [...ACTIVE]),
+        sql`${subscriptions.currentPeriodStart} <= ${now}`,
+        sql`${subscriptions.currentPeriodEnd} > ${now}`,
+      ),
+    )
+    .orderBy(desc(subscriptions.createdAt));
+  for (const r of rows) if (!out.has(r.sub.organizationId)) out.set(r.sub.organizationId, toDef(r.plan));
+  const [free] = await db.select().from(plans).where(eq(plans.code, "free"));
+  const freeDef = free ? toDef(free) : DEFAULT_PLANS[0]!;
+  for (const id of organizationIds) if (!out.has(id)) out.set(id, freeDef);
+  return out;
+}
+
 export async function capacityRemaining(db: DB, organizationIds: string[], now: Date): Promise<Map<string, number>> {
-  const used = await leadsThisPeriod(db, organizationIds, now);
+  const [used, planMap] = await Promise.all([leadsThisPeriod(db, organizationIds, now), effectivePlans(db, organizationIds, now)]);
   const out = new Map<string, number>();
-  for (const id of organizationIds) {
-    const plan = await effectivePlan(db, id, now);
-    out.set(id, Math.max(0, plan.maxLeadsPerMonth - (used.get(id) ?? 0)));
-  }
+  for (const id of organizationIds) out.set(id, Math.max(0, planMap.get(id)!.maxLeadsPerMonth - (used.get(id) ?? 0)));
   return out;
 }
 
