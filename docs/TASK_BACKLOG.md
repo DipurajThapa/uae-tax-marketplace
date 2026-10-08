@@ -28,18 +28,19 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-01 | Data model, migrations, DB invariants | COMPLETE | integrity tests pass |
 | ENG-02 | Search, profile, compare, landing pages, SEO plumbing | COMPLETE | E2E 1 + SEO test |
 | ENG-03 | Needs assessment, matching, consented enquiry, routing, outbox | COMPLETE | E2E 2/3/7, integration |
-| ENG-04 | Batch `capacityRemaining` / candidate loading for >1,000 listings | NOT STARTED | p95 match < 300 ms at 5k listings |
+| ENG-04 | Batch `capacityRemaining` / candidate loading for >1,000 listings | COMPLETE | p95 242 ms at 5,000 listings (`npm run bench:matching`) |
 | ENG-05 | Live payment adapter (Stripe Billing or UAE PSP) behind the `BillingProvider` interface, with signed webhooks | BLOCKED (OPS-02) | test-mode checkout E2E |
 | ENG-06 | SMTP/API mail transport | BLOCKED (OPS-03) | outbox sends; bounces handled |
-| ENG-07 | Individual professionals: add people + FTA_TAX_AGENT submissions in provider UI | NOT STARTED | provider adds a person; reviewer verifies |
+| ENG-07 | Individual professionals: add people + FTA_TAX_AGENT submissions in provider UI | COMPLETE | integration "ENG-07" + E2E |
 | ENG-08 | Self-service password reset (email link) | COMPLETE | integration test "password reset" |
-| ENG-09 | Admin article editor (guides CMS UI; gate exists in `articles.ts`) | NOT STARTED | publish blocked without reviewer + Tier-1 source |
-| ENG-10 | Provider monthly lead-quality report email + dashboard analytics (paid feature) | NOT STARTED | report renders from data |
-| ENG-11 | Lighthouse CI budget in CI | NOT STARTED | LCP < 2.5 s mobile on key pages |
+| ENG-09 | Admin article editor (guides CMS UI; gate exists in `articles.ts`) | COMPLETE | integration "ENG-09" + E2E |
+| ENG-10 | Provider dashboard analytics (paid feature) | COMPLETE (dashboard); monthly email waits on OPS-03 | integration "ENG-10" + E2E |
+| ENG-11 | Lighthouse CI budget in CI | COMPLETE | 5 pages, scores 0.98–0.99, LCP ≤ 2.2 s (mobile, simulated) |
 | ENG-12 | Arabic UI (RTL) | DEFERRED | — |
-| ENG-13 | MFA for staff accounts | NOT STARTED | TOTP for admin/reviewer |
+| ENG-16 | Optional MFA for provider accounts | NOT STARTED (accepted risk R-11) | providers can enrol TOTP from their dashboard |
+| ENG-13 | MFA for staff accounts | COMPLETE | RFC 6238 vectors, integration, E2E |
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
-| ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | NOT STARTED | CSP has no unsafe-inline; E2E passes |
+| ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | COMPLETE | E2E "ENG-15": zero CSP violations |
 
 Items from the adversarial review are added below when it reports (see `EVIDENCE_LOG.md`).
 
@@ -58,4 +59,22 @@ Items from the adversarial review are added below when it reports (see `EVIDENCE
 | RV-L10a | `//host` markdown links treated as internal | COMPLETE | Unit test |
 | RV-L10b | Demo badge missing on compare | COMPLETE | — |
 | RV-L10c | Sponsored block ignores some filters | COMPLETE | Hidden when keyword, type, language, zone or verification filters are active |
-| RV-L10d | CSP allows `'unsafe-inline'` scripts | ACCEPTED (tracked) | Needs nonce-based CSP via middleware; do before launch (ENG-15) |
+| RV-L10d | CSP allows `'unsafe-inline'` scripts | COMPLETE | ENG-15 |
+
+## Review follow-ups (second adversarial review 2026-10-08, PR #3 features)
+| ID | Finding | Status | Evidence / note |
+|---|---|---|---|
+| RV2-H1 | A demo firm's person could be verified (the trigger only checked the person's flag) | COMPLETE | Migration 0007 backfills `professionals.is_synthetic` from the firm; trigger checks person OR firm; `addProfessional` copies the firm's flag. Test "H1" |
+| RV2-M1 | MFA enrolment secret shared across sessions; confirm allowed after MFA was on | COMPLETE | Pending secret lives on the session; confirm locks the user and requires no factor yet; other sessions end. Test "M1" |
+| RV2-M2 | Publish ran the gate outside the transaction (TOCTOU) | COMPLETE | Gate runs on the locked row; publish carries the version the admin saw. Test "M2" |
+| RV2-M3 | Review not tied to content; any https URL counted as Tier 1 | COMPLETE | Separate "record review" stores a content hash and who recorded it; Tier 1 limited to official domains. Tests "M3", E2E ENG-09 |
+| RV2-M4 | Renaming a person with a pending registration moved the badge | COMPLETE | Rename blocked while pending/verified/disputed; submission stores the name; approval refuses a mismatch. Test "M4" |
+| RV2-M5 | Individual registrations could not be reported; hard delete lost history; duplicates across firms | COMPLETE | Reports resolve the firm through the person; soft delete (`removed_at`); reviewers see the same number held elsewhere. Tests "M5" |
+| RV2-M6 | Prefetch requests and look-alike paths skipped the CSP | COMPLETE | Proxy matcher has no `missing` clause; exclusions anchored. E2E ENG-15 |
+| RV2-L1 | Session stage defaulted to "full" | COMPLETE | Default `'mfa'`; existing staff sessions deleted by the migration. Test "L1" |
+| RV2-L2 | Match search not rate-limited (inflates provider insights) | COMPLETE | 30 searches per IP per hour; index for insights queries |
+| RV2-L3 | Published guides stayed live after the review expired | COMPLETE | Gate re-applied on read with an injected clock. Test "L3" |
+| RV2-L4 | Rolled-over dates (2026-02-31) accepted | COMPLETE | `parseIsoDate` shared by forms and schemas. Test in articles |
+| RV2-L5 | Session not rotated after MFA; lockout counted successes; enroll page could 500 | COMPLETE | `rotateSession`; failures-only limits per user+IP (5/15 min) and per user (20/h); enroll page signs out if MFA is already on. Tests "L5" |
+| RV2-L6 | No UI for MFA reset; target not validated | COMPLETE | `/admin/staff` (admin-only, identity-confirmed checkbox); reset only for staff accounts. Test in mfa |
+| RV2-L6b | Provider accounts have no MFA | ACCEPTED RISK (R-11) | ENG-16 |

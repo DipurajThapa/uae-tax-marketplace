@@ -38,6 +38,13 @@ jobs:
           PGPASSWORD=app psql -h localhost -U app -d marketplace_test -c "CREATE DATABASE marketplace_e2e"
           npx playwright install --with-deps chromium
           npm run test:e2e
+      - name: Performance budget (Lighthouse, mobile)
+        run: |
+          export CHROME_PATH=$(node -e "console.log(require('@playwright/test').chromium.executablePath())")
+          PORT=3300 DATABASE_URL=postgresql://app:app@localhost:5432/marketplace_e2e APP_SECRET=e2e-secret-0123456789abcdef0123456789abcdef \
+            SITE_URL=http://localhost:3300 APP_ENV=test npx next start -p 3300 &
+          npx wait-on -t 60000 http://localhost:3300/api/health
+          BASE_URL=http://localhost:3300 node scripts/perf-budget.mjs
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: playwright-report, retention-days: 7 }

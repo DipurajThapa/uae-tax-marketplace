@@ -8,11 +8,22 @@ import { randomToken, sha256, verifyPassword, keyedHash } from "./crypto";
 import { normalizeEmail } from "./text";
 import { rateLimit } from "./ratelimit";
 import { audit, userActor, PUBLIC } from "./audit";
+import { MFA_REQUIRED_ROLES, rotateSession } from "./mfa";
 
 const COOKIE = "sid";
 const TTL_HOURS = 12;
 
-export type SessionUser = { id: string; email: string; name: string; role: "admin" | "reviewer" | "provider"; organizationId: string | null };
+export type SessionStage = "full" | "mfa" | "enroll";
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "reviewer" | "provider";
+  organizationId: string | null;
+  /** "full" unless a staff user still has to pass or set up two-factor authentication (ENG-13). */
+  stage: SessionStage;
+  sessionId: string;
+};
 
 /**
  * Client IP for rate limiting. X-Forwarded-For is client-controlled except for the entries appended
@@ -43,17 +54,30 @@ export async function login(emailRaw: string, password: string): Promise<{ ok: t
     return { ok: false, error: "Email or password is incorrect" };
   }
   const token = randomToken();
-  await db.insert(sessions).values({ id: sha256(token), userId: u.id, expiresAt: new Date(Date.now() + TTL_HOURS * 3600_000) });
-  const jar = await cookies();
-  jar.set(COOKIE, token, {
+  const stage: SessionStage = MFA_REQUIRED_ROLES.has(u.role) ? (u.totpEnabledAt ? "mfa" : "enroll") : "full";
+  await db.insert(sessions).values({ id: sha256(token), userId: u.id, stage, expiresAt: new Date(Date.now() + TTL_HOURS * 3600_000) });
+  await setCookie(token, TTL_HOURS * 3600);
+  await audit(db, userActor(u.id), "auth.login", "user", u.id);
+  return { ok: true, user: { id: u.id, email: u.email, name: u.name, role: u.role, organizationId: u.organizationId, stage, sessionId: sha256(token) } };
+}
+
+async function setCookie(token: string, maxAgeSeconds: number) {
+  (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production" && !process.env.SITE_URL?.startsWith("http://"),
     path: "/",
-    maxAge: TTL_HOURS * 3600,
+    maxAge: maxAgeSeconds,
   });
-  await audit(db, userActor(u.id), "auth.login", "user", u.id);
-  return { ok: true, user: { id: u.id, email: u.email, name: u.name, role: u.role, organizationId: u.organizationId } };
+}
+
+/** After the second factor: replace the session with a fresh id at stage "full" (review2 L5). */
+export async function upgradeSession(user: SessionUser): Promise<void> {
+  const db = getDb();
+  const [s] = await db.select({ expiresAt: sessions.expiresAt }).from(sessions).where(eq(sessions.id, user.sessionId));
+  if (!s) redirect("/login");
+  const token = await rotateSession(db, user.sessionId, "full");
+  await setCookie(token, Math.max(60, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)));
 }
 
 export async function logout(): Promise<void> {
@@ -67,18 +91,21 @@ export async function currentUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const [row] = await getDb()
-    .select({ u: users })
+    .select({ u: users, s: sessions })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, new Date())));
   if (!row || row.u.disabled) return null;
-  return { id: row.u.id, email: row.u.email, name: row.u.name, role: row.u.role, organizationId: row.u.organizationId };
+  return { id: row.u.id, email: row.u.email, name: row.u.name, role: row.u.role, organizationId: row.u.organizationId, stage: row.s.stage as SessionStage, sessionId: row.s.id };
 }
 
 /** Server-side guard used by every privileged page and action. Unknown roles never pass. */
 export async function requireRole(...roles: SessionUser["role"][]): Promise<SessionUser> {
   const u = await currentUser();
   if (!u) redirect("/login");
+  // Staff must finish the second factor before any privileged page or action (ENG-13).
+  if (u.stage === "mfa") redirect("/login/mfa");
+  if (u.stage === "enroll") redirect("/account/mfa-setup");
   if (!roles.includes(u.role)) redirect("/forbidden");
   return u;
 }

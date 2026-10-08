@@ -8,9 +8,12 @@ All runs on 2026-10-08 in the build sandbox unless noted. "CI" means GitHub Acti
 | Typecheck | pass | `npm run typecheck` |
 | ESLint | pass | `npm run lint` |
 | Copy lint | pass (68 files); planted "guaranteed" fails with file:line (exit 1) | `npm run lint:copy` |
-| Unit + integration (real Postgres) | **81 / 81 pass**, also with `ALLOW_SYNTHETIC_DATA=true` in the environment (the CI condition) | `npm test` |
+| Unit + integration (real Postgres) | **94 / 94 pass**, also with `ALLOW_SYNTHETIC_DATA=true` in the environment (the CI condition) | `npm test` |
 | Production build | pass, 50 routes | `npm run build` |
-| Browser E2E (Playwright, Chromium, production build) | **12 / 12 pass** (adds L3 signed messages, L4 logout) | `npm run test:e2e` |
+| Browser E2E (Playwright, Chromium, production build) | **17 / 17 pass** (adds CSP, staff MFA, people, guide editor, insights) |
+| Performance budget (Lighthouse mobile) | pass on 5 pages: score 0.98–0.99, LCP 1.55–2.20 s, CLS 0, TBT 42–97 ms, JS ~140–178 KB | `npm run perf:budget` |
+| Matching latency at 5,000 listings | p50 127 ms, p95 242 ms (was 6,518 / 7,084 ms) | `npm run bench:matching` |
+| TOTP | RFC 6238 SHA-1 vectors pass (T=59, 1111111109, 1234567890) | unit | `npm run test:e2e` |
 | Restore drill | pass: row counts equal; audit trigger survives restore | `scripts/restore-drill.sh` |
 | Response time (warm, local) | ~20 ms per page; HTML 16–32 KB | curl against `next start` |
 
@@ -31,7 +34,11 @@ All runs on 2026-10-08 in the build sandbox unless noted. "CI" means GitHub Acti
 ## Independent adversarial review
 A separate reviewer agent tried to invalidate the release-candidate claim. It found 0 Critical, 5 High, 11 Medium and 11 Low issues.
 - Fixed with tests: H1–H5, M1, M2, M3, M4, M5, M6, M7, M8, M11, L1, L7, L11.
-- Follow-ups (after PR #1 merged): M9, L2–L6, L8, L9 and L10a–c fixed with tests. Open: M10 (blocked on counsel), L10d (nonce CSP, ENG-15).
+- Follow-ups (after PR #1 merged): M9, L2–L6, L8, L9 and L10a–c fixed with tests. L10d closed by ENG-15. Open: M10 (blocked on counsel).
+
+### Second review (features in PR #3)
+A second reviewer agent attacked ENG-07/09/10/13/15. It found 0 Critical, 1 High, 6 Medium and 6 Low issues. All fixed with tests except provider MFA, which is accepted as risk R-11 (ENG-16). See TASK_BACKLOG "second adversarial review".
+- After the fixes: `npm run check` with 107 unit and integration tests passing; `npm run test:e2e` with 17 of 17 passing (local run, 2026-10-08).
 
 ## CI history
 - PR #1 merged into `main` as `a61622b` with CI green.
@@ -42,4 +49,4 @@ A separate reviewer agent tried to invalidate the release-candidate claim. It fo
 ## Not verified (honest gaps)
 - No real providers, traffic, payments or emails. All commercial figures are test-mode.
 - Regulatory research could not open any official page (sandbox network); see the ledger header.
-- No load test beyond the parallel-submission and concurrent-worker tests; no Lighthouse run.
+- No load test beyond the parallel-submission and concurrent-worker tests and the matching benchmark (ENG-04). Lighthouse runs on a CI runner with simulated mobile throttling, not on real devices.

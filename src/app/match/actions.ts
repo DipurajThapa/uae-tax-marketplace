@@ -5,6 +5,8 @@ import { validateAssessment, type Answers } from "@/lib/assessment";
 import { explainNoMatch } from "@/lib/matching";
 import { getMatches, submitEnquiry } from "@/lib/enquiry";
 import { clientIp } from "@/lib/session";
+import { rateLimit } from "@/lib/ratelimit";
+import { keyedHash } from "@/lib/crypto";
 import { track } from "@/lib/analytics";
 import { getProviderById } from "@/lib/providers";
 import { ENQUIRY_CONSENT_VERSION, enquiryConsentText } from "@/lib/consent";
@@ -24,11 +26,16 @@ export type FindResult =
   | { ok: true; matches: MatchView[]; noMatchReasons: string[] }
   | { ok: false; errors: Record<string, string> };
 
+const MATCH_LIMIT_PER_HOUR = 30;
+
 export async function findMatchesAction(answers: Answers): Promise<FindResult> {
   const v = validateAssessment(answers);
   if (!v.ok) return { ok: false, errors: v.errors };
   const db = getDb();
   const now = new Date();
+  // Each search records "matched" events that feed provider insights, so scripted searches are capped (review2 L2).
+  const rl = await rateLimit(db, "match_ip", keyedHash(`match:${await clientIp()}`), MATCH_LIMIT_PER_HOUR, 3600, now);
+  if (!rl.allowed) return { ok: false, errors: { form: "Too many searches from this connection. Try again in an hour." } };
   const result = await getMatches(db, v.value, now);
   await track(db, "assessment_completed", { service: v.value.services[0], emirate: v.value.emirate });
   if (result.matches.length === 0) {
@@ -36,6 +43,7 @@ export async function findMatchesAction(answers: Answers): Promise<FindResult> {
     return { ok: true, matches: [], noMatchReasons: explainNoMatch(result) };
   }
   await track(db, "matches_shown", { count: result.matches.length, service: v.value.services[0] });
+  for (const m of result.matches) await track(db, "provider_matched", { orgId: m.candidateId, score: m.score });
   const views: MatchView[] = [];
   for (const m of result.matches) {
     const detail = await getProviderById(db, m.candidateId);

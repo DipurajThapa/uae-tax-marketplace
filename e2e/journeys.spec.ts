@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { nextCode, E2E_TOTP_SECRETS } from "./mfa";
 
 /**
  * Cross-system scenarios from the product directive, exercised in a real browser against
@@ -12,7 +13,12 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"));
+  await page.waitForURL((u) => !(u.pathname === "/login"));
+  if (new URL(page.url()).pathname === "/login/mfa") {
+    await page.getByLabel("Authentication code").fill(await nextCode(E2E_TOTP_SECRETS[email]));
+    await page.getByRole("button", { name: "Verify" }).click();
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"));
+  }
 }
 
 async function signOut(page: Page) {
@@ -158,6 +164,23 @@ test("L3: a crafted message in the URL is not shown", async ({ page }) => {
   await expect(page.getByText("Your account is locked")).toHaveCount(0);
 });
 
+test("ENG-13: staff need a second factor; a wrong code and a password alone get nowhere", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("admin@e2e.invalid");
+  await page.getByLabel("Password").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/login\/mfa/);
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/login\/mfa/); // password alone does not open admin
+  await page.getByLabel("Authentication code").fill("000000");
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page.getByText("That code did not work")).toBeVisible();
+  await page.getByLabel("Authentication code").fill(await nextCode(E2E_TOTP_SECRETS["admin@e2e.invalid"]));
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page).toHaveURL(/\/admin/);
+  await signOut(page);
+});
+
 test("9. unauthorised users cannot reach privileged areas", async ({ page }) => {
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/login/);
@@ -172,6 +195,71 @@ test("9. unauthorised users cannot reach privileged areas", async ({ page }) => 
   await expect(page).toHaveURL(/\/forbidden/); // admin-only section
 });
 
+test("ENG-07: a provider adds a person and submits an individual registration", async ({ page }) => {
+  await signIn(page, "books@e2e.invalid");
+  await page.goto("/provider/people");
+  await page.getByLabel("Full name").fill("Noor Al Mansoori");
+  await page.getByLabel("Title (optional)").fill("Tax Associate");
+  await page.getByRole("button", { name: "Add person" }).click();
+  await expect(page.getByText("Person added.")).toBeVisible();
+  await page.getByLabel("Registration or qualification").selectOption("FTA_TAX_AGENT");
+  await page.getByLabel("Registration or membership number").fill("E2E-TAAN-77");
+  await page.getByLabel("Where can the reviewer check it?").fill("FTA register search by agent number");
+  await page.getByRole("button", { name: "Submit for review" }).click();
+  await expect(page.getByText("Submitted for review")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "In review" })).toBeVisible();
+  await signOut(page);
+});
+
+test("ENG-09: an admin writes, gates and publishes a guide; reviewers cannot publish", async ({ page }) => {
+  test.setTimeout(90_000);
+  await signIn(page, "admin@e2e.invalid");
+  await page.goto("/admin/guides");
+  await page.getByText("New guide").click();
+  await page.getByLabel("Title").fill("E2E guide: how registrations are shown");
+  await page.getByLabel("Address (slug)").fill("e2e-registrations-guide");
+  await page.getByLabel("Summary").fill("A test guide explaining how this directory shows the three kinds of registration.");
+  await page.getByLabel("Body (Markdown)").fill("## Overview\n\n" + "This paragraph is test content for the end-to-end guide editor check. ".repeat(6));
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+  await expect(page.getByText("At least one official (Tier 1) source is required")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
+
+  const today = new Date().toISOString().slice(0, 10);
+  await page.getByLabel("Sources").fill(`1 | ${today} | Federal Tax Authority | https://tax.gov.ae`);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved. A published guide goes back to draft when edited.")).toBeVisible();
+  await expect(page.getByText("A named reviewer with credential and review date is required")).toBeVisible();
+  // review2 M3: the review is recorded separately and covers the saved text.
+  await page.getByLabel("Reviewer name").fill("E2E Reviewer");
+  await page.getByLabel("Reviewer credential").fill("FTA-listed tax agent");
+  await page.getByLabel("Review date").fill(today);
+  await page.getByRole("button", { name: "Record review of this text" }).click();
+  await expect(page.getByText("Review recorded for the current text")).toBeVisible();
+  await expect(page.getByText("All checks pass.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published", { exact: true })).toBeVisible();
+  const editUrl = page.url();
+  await page.goto("/guides/e2e-registrations-guide");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("E2E guide: how registrations are shown");
+  await expect(page.getByText("Reviewed by E2E Reviewer")).toBeVisible();
+  await signOut(page);
+
+  await signIn(page, "reviewer@e2e.invalid");
+  await page.goto(editUrl);
+  await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(0);
+  await signOut(page);
+});
+
+test("ENG-10: insights show basic counts on the free plan and point to paid figures", async ({ page }) => {
+  await signIn(page, "books@e2e.invalid");
+  await page.goto("/provider/insights");
+  await expect(page.getByText("Enquiries received")).toBeVisible();
+  await expect(page.getByText("Profile views", { exact: true })).toHaveCount(0); // the tile, not the upgrade note
+  await expect(page.getByText("included in paid plans")).toBeVisible();
+  await signOut(page);
+});
+
 test("SEO: crawlers blocked before launch, pages render without JavaScript", async ({ browser, request }) => {
   const robots = await (await request.get("/robots.txt")).text();
   expect(robots).toMatch(/Disallow: \//);
@@ -184,6 +272,33 @@ test("SEO: crawlers blocked before launch, pages render without JavaScript", asy
   await page.goto("/services/vat-returns");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("VAT return preparation");
   await ctx.close();
+});
+
+test("ENG-15: nonce-based CSP, no script unsafe-inline, no violations while pages hydrate", async ({ page, request }) => {
+  const a = (await request.get("/")).headers()["content-security-policy"] ?? "";
+  const b = (await request.get("/")).headers()["content-security-policy"] ?? "";
+  const scriptSrc = a.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
+  expect(scriptSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
+  expect(scriptSrc).not.toContain("unsafe-inline");
+  expect(a).not.toBe(b); // fresh nonce per request
+  // review2 M6: prefetches and look-alikes of excluded paths carry the policy too.
+  const csp = async (path: string, headers: Record<string, string> = {}) => (await request.get(path, { headers })).headers()["content-security-policy"] ?? "";
+  expect(await csp("/providers", { "next-router-prefetch": "1", rsc: "1" })).toContain("script-src");
+  expect(await csp("/providers", { purpose: "prefetch" })).toContain("script-src");
+  expect(await csp("/api/health-x")).toContain("script-src");
+  expect(await csp("/favicon.ico.html")).toContain("script-src");
+
+  const violations: string[] = [];
+  page.on("console", (m) => { if (/Content Security Policy|Refused to (execute|load)/i.test(m.text())) violations.push(m.text()); });
+  for (const path of ["/", "/providers", "/providers/e2e-verified-tax-agency", "/match", "/login", "/for-providers/register"]) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+  }
+  // The wizard is a client component: interacting proves the hydrated JS executed under the policy.
+  await page.goto("/match");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Choose at least one service")).toBeVisible();
+  expect(violations).toEqual([]);
 });
 
 test("accessibility: key pages have no serious axe violations", async ({ page }) => {

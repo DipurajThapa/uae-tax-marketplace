@@ -16,7 +16,7 @@ npm run dev                      # http://localhost:3000
 npm run worker                   # outbox, credential freshness, retention (separate process)
 ```
 
-Dev logins after `--demo`: `admin@example.invalid` / `admin-password-dev`, `reviewer@example.invalid` / `admin-password-dev`, `provider01@example.invalid` / `provider-password-dev`.
+Dev logins after `--demo` (staff accounts are asked to set up an authenticator app at first sign-in; lost device: `npx tsx scripts/reset-mfa.ts <email>`): `admin@example.invalid` / `admin-password-dev`, `reviewer@example.invalid` / `admin-password-dev`, `provider01@example.invalid` / `provider-password-dev`.
 
 ## Checks
 

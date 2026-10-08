@@ -1,7 +1,7 @@
 import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DB } from "@/db/client";
-import { credentials, credentialTypes, disputes, credentialSubmissions, organizations, users } from "@/db/schema";
+import { credentials, credentialTypes, disputes, credentialSubmissions, organizations, users, professionals } from "@/db/schema";
 import { audit, PUBLIC, SYSTEM, type Actor } from "./audit";
 import { rateLimit } from "./ratelimit";
 import { keyedHash } from "./crypto";
@@ -35,7 +35,18 @@ export async function verifyCredential(db: DB, actor: Actor, credentialId: strin
     if (c.c.status === "disputed") throw new Error("Resolve the open dispute first");
     const [reviewer] = await tx.select({ org: users.organizationId, role: users.role }).from(users).where(eq(users.id, actor.userId!));
     if (!reviewer || (reviewer.role !== "admin" && reviewer.role !== "reviewer")) throw new Error("Only staff can verify credentials");
-    if (reviewer.org && reviewer.org === c.c.organizationId) throw new Error("Staff cannot verify their own organisation's credentials");
+    // The credential's firm: its own organisation, or the employer of the person who holds it.
+    let subjectOrg = c.c.organizationId;
+    if (!subjectOrg && c.c.professionalId) {
+      const [person] = await tx
+        .select({ org: professionals.organizationId, removedAt: professionals.removedAt })
+        .from(professionals)
+        .where(eq(professionals.id, c.c.professionalId))
+        .for("share");
+      if (!person || person.removedAt) throw new Error("This person has been removed from the firm's listing");
+      subjectOrg = person.org ?? null;
+    }
+    if (reviewer.org && reviewer.org === subjectOrg) throw new Error("Staff cannot verify their own organisation's credentials");
     let recheck = addDays(now, c.recheckDays);
     const expires = v.expiresAt ?? c.c.expiresAt;
     if (expires && expires <= now) throw new Error("Credential has already expired");
@@ -121,7 +132,13 @@ export async function openDispute(db: DB, input: z.input<typeof disputeSchema>, 
   const id = await db.transaction(async (tx) => {
     let prior: typeof credentials.$inferSelect.status | null = null;
     if (d.credentialId) {
-      const [c] = await tx.select().from(credentials).where(and(eq(credentials.id, d.credentialId), eq(credentials.organizationId, d.organizationId))).for("update");
+      // The credential belongs to the firm itself or to one of its people (review2 M5).
+      const [c] = await tx
+        .select({ status: credentials.status })
+        .from(credentials)
+        .leftJoin(professionals, eq(professionals.id, credentials.professionalId))
+        .where(and(eq(credentials.id, d.credentialId), or(eq(credentials.organizationId, d.organizationId), eq(professionals.organizationId, d.organizationId))))
+        .for("update", { of: credentials });
       if (!c) throw new Error("Credential does not belong to this provider");
       prior = c.status;
     }
@@ -173,17 +190,46 @@ export async function freezeForDispute(db: DB, actor: Actor, disputeId: string, 
 
 // ---------- Credential submissions from providers ----------
 
+/**
+ * Other credentials with the same type and registration number, at any firm. The reviewer sees them
+ * before approving, because one register entry must not back badges at two firms (review2 M5).
+ */
+export async function duplicateRegistrations(db: DB, credentialType: string, registrationNumber: string, excludeSubmissionId: string) {
+  const norm = sql`upper(regexp_replace(${credentials.registrationNumber}, '[^A-Za-z0-9]', '', 'g'))`;
+  const target = registrationNumber.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const [sub] = await db.select({ credentialId: credentialSubmissions.credentialId }).from(credentialSubmissions).where(eq(credentialSubmissions.id, excludeSubmissionId));
+  const rows = await db
+    .select({ id: credentials.id, status: credentials.status, org: sql<string | null>`coalesce(${organizations.tradeName}, ${organizations.legalName})`, person: professionals.fullName })
+    .from(credentials)
+    .leftJoin(professionals, eq(professionals.id, credentials.professionalId))
+    .leftJoin(organizations, eq(organizations.id, sql`coalesce(${credentials.organizationId}, ${professionals.organizationId})`))
+    .where(and(eq(credentials.credentialType, credentialType), sql`${norm} = ${target}`, inArray(credentials.status, ["pending", "verified", "disputed", "expired"])));
+  return rows.filter((r) => r.id !== sub?.credentialId);
+}
+
 /** Approves a provider's submission and verifies the credential in ONE transaction (no orphan rows on failure). */
 export async function approveSubmission(db: DB, actor: Actor, submissionId: string, input: z.input<typeof verifyInputSchema>, now = new Date()) {
   await db.transaction(async (tx) => {
     const [s] = await tx.select().from(credentialSubmissions).where(eq(credentialSubmissions.id, submissionId)).for("update");
     if (!s || s.state !== "pending") throw new Error("Submission is not pending");
     if (s.submittedBy === actor.userId) throw new Error("Reviewers cannot approve their own submission");
+    if (s.professionalId) {
+      // The reviewer checked the register against the name on the submission. If the firm renamed
+      // the person since, approving would put the badge on a name nobody checked (review2 M4).
+      const [person] = await tx.select({ fullName: professionals.fullName, removedAt: professionals.removedAt }).from(professionals).where(eq(professionals.id, s.professionalId)).for("share");
+      if (!person || person.removedAt) throw new Error("This person has been removed from the firm's listing; reject the submission");
+      if (s.professionalName !== null && s.professionalName !== person.fullName)
+        throw new Error(`The person's name changed from "${s.professionalName}" to "${person.fullName}" after submission; reject it and ask for a new one`);
+    }
     let credentialId = s.credentialId;
     if (!credentialId) {
       const [c] = await tx
         .insert(credentials)
-        .values({ credentialType: s.credentialType, organizationId: s.organizationId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" })
+        .values(
+          s.professionalId
+            ? { credentialType: s.credentialType, professionalId: s.professionalId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" }
+            : { credentialType: s.credentialType, organizationId: s.organizationId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" },
+        )
         .returning({ id: credentials.id });
       credentialId = c!.id;
     }

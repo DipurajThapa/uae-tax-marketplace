@@ -159,6 +159,7 @@ export const professionals = pgTable(
     languages: text("languages").array().notNull().default(sql`'{}'::text[]`),
     bio: text("bio"),
     isSynthetic: boolean("is_synthetic").notNull().default(false),
+    removedAt: timestamp("removed_at", { withTimezone: true }), // soft delete keeps history for reviewers (review2 M5)
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -246,6 +247,10 @@ export const users = pgTable(
     disabled: boolean("disabled").notNull().default(false),
     // Set when the user proves control of the inbox (verify link, or a set-password link sent there).
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    // TOTP second factor (ENG-13). Secret is AES-256-GCM encrypted; last step blocks code replay.
+    totpSecretEnc: text("totp_secret_enc"),
+    totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+    totpLastStep: integer("totp_last_step"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -257,6 +262,10 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  // "full" = signed in; staff sessions start at "mfa" (code required) or "enroll" (must set up MFA).
+  stage: text("stage").notNull().default("mfa"), // fail closed: code paths must set "full" explicitly
+  // Enrolment secret shown to THIS session only (review2 M1); moved to the user when confirmed.
+  pendingTotpEnc: text("pending_totp_enc"),
   createdAt: createdAt(),
 });
 
@@ -298,6 +307,9 @@ export const credentialSubmissions = pgTable("credential_submissions", {
   submittedBy: uuid("submitted_by")
     .notNull()
     .references(() => users.id),
+  // Set when the registration belongs to an individual at the firm (ENG-07).
+  professionalId: uuid("professional_id").references(() => professionals.id, { onDelete: "cascade" }),
+  professionalName: text("professional_name"), // the name the reviewer checks; approval refuses if it changed
   credentialType: text("credential_type")
     .notNull()
     .references(() => credentialTypes.code),
@@ -530,6 +542,9 @@ export const articles = pgTable(
     reviewerName: text("reviewer_name"),
     reviewerCredential: text("reviewer_credential"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    // Hash of title+summary+body+sources at sign-off; publishing requires it to match (review2 M3).
+    reviewedContentHash: text("reviewed_content_hash"),
+    reviewRecordedBy: uuid("review_recorded_by"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -547,7 +562,10 @@ export const analyticsEvents = pgTable(
     props: jsonb("props").notNull().default(sql`'{}'::jsonb`),
     createdAt: createdAt(),
   },
-  (t) => [index("analytics_events_name_idx").on(t.name, t.createdAt)],
+  (t) => [
+    index("analytics_events_name_idx").on(t.name, t.createdAt),
+    index("analytics_events_org_idx").on(sql`(${t.props}->>'orgId')`, t.createdAt),
+  ],
 );
 
 export const auditLog = pgTable(

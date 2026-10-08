@@ -12,9 +12,11 @@ const SECTIONS: { href: string; label: string; adminOnly?: boolean }[] = [
   { href: "/admin/disputes", label: "Disputes" },
   { href: "/admin/enquiries", label: "Enquiries" },
   { href: "/admin/notifications", label: "Notifications" },
+  { href: "/admin/guides", label: "Guides" },
   { href: "/admin/import", label: "Import", adminOnly: true },
   { href: "/admin/billing", label: "Billing (test mode)", adminOnly: true },
   { href: "/admin/promotions", label: "Promotions", adminOnly: true },
+  { href: "/admin/staff", label: "Staff", adminOnly: true },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

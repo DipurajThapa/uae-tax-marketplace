@@ -2,6 +2,7 @@ import { flashUrl, readFlash } from "@/lib/flash";
 import "server-only";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
+import { parseIsoDate } from "@/lib/validators";
 import { requireRole, type SessionUser } from "@/lib/session";
 
 /** Staff guard (admin or reviewer). Call at the top of every admin page AND every server action. */
@@ -76,9 +77,7 @@ export function oneOf<T extends string>(fd: FormData, name: string, allowed: rea
 export function dateField(fd: FormData, name: string): Date | undefined | null {
   const v = text(fd, name, 20);
   if (!v) return undefined;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
-  const d = new Date(`${v}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? null : d;
+  return parseIsoDate(v);
 }
 
 /** Normalises a search param that may be an array. */

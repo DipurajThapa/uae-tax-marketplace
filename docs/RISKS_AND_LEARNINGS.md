@@ -11,8 +11,9 @@
 | R-06 | Listing non-registered "tax consultants" next to registered agents could mislead | Medium | Product | Firm type and each registration status are always shown; regulated services require verification to match; LG-05 asks counsel |
 | R-07 | Manual verification workload scales with supply | Medium | Ops | Re-check cadence 90 days (regulated), 365 (qualifications); due-soon queue; ask the FTA for a feed |
 | R-08 | Postgres-only queueing/rate limiting has throughput limits | Low (at MVP scale) | Eng | Fine for thousands of enquiries/day; move to Redis/queue if the outbox lags (alert on `/api/health` degraded) |
-| R-09 | `capacityRemaining` does one plan query per candidate | Low | Eng | OK for current candidate counts; batch when listings > ~1,000 (ENG-04) |
+| R-09 | `capacityRemaining` does one plan query per candidate | Closed | Eng | Batched in ENG-04: p95 242 ms at 5,000 listings |
 | R-10 | Commercial assumptions (prices, caps) are untested | High (commercial) | Owner | D-007 placeholders; validate with provider interviews before enabling billing |
+| R-11 | Provider accounts have password-only sign-in (accepted for now) | Medium | Eng | Providers see only their own enquiries; login and per-account rate limits; email verification. ENG-16 adds optional TOTP before launch if the owner wants it |
 
 ## Learnings (from this build)
 - **Next.js metadata:** a page returning `robots: undefined` silently drops the layout's `noindex`. Found by the E2E SEO test; fixed with `robotsFor()` that always returns an explicit value (D-013).
@@ -20,4 +21,6 @@
 - **Feature interaction:** the free-plan monthly cap (3) masked the IP rate-limit test. Tests must isolate the control under test.
 - **E2E races:** clicking a server-action button and then navigating immediately can abort the action; wait for the post-action redirect.
 - **Drizzle migrator** applies all pending migrations in one transaction; proven with a deliberately broken migration.
+- **Inline server actions** cannot close over a function from the component body (Next serialises the closure); module-level helpers only. Found by E2E, not by typecheck.
+- **E2E after a server action:** wait for the post-redirect notice before filling the next form, or the re-render clears the fields.
 - Sub-agent reviews of `src/lib` found real defects: `javascript:` URLs, orphan rows on non-atomic approval, plaintext one-time tokens kept after sending, receipts surviving erasure, IDOR on subscription cancel. All fixed and covered by tests.

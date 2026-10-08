@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, ilike, or, lte, gt, asc, isNotNull, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql, ilike, or, lte, gt, asc, isNotNull, isNull, type SQL } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import {
   organizations,
@@ -131,7 +131,7 @@ async function getProviderDetail(db: DB, org: typeof organizations.$inferSelect,
     db.select().from(organizationJurisdictions).where(eq(organizationJurisdictions.organizationId, org.id)),
     db.select().from(organizationIndustries).where(eq(organizationIndustries.organizationId, org.id)),
     db.select().from(credentials).where(eq(credentials.organizationId, org.id)),
-    db.select().from(professionals).where(eq(professionals.organizationId, org.id)),
+    db.select().from(professionals).where(and(eq(professionals.organizationId, org.id), isNull(professionals.removedAt))),
   ]);
   const peopleIds = people.map((p) => p.id);
   const personCreds = peopleIds.length
@@ -152,57 +152,73 @@ export type ProviderDetail = NonNullable<Awaited<ReturnType<typeof getProviderBy
 /** Loads matching candidates for the requested services, with capacity computed from the plan in force. */
 export async function loadCandidates(db: DB, serviceCodes: string[], now: Date): Promise<Candidate[]> {
   if (serviceCodes.length === 0) return [];
-  const orgs = await db
-    .select()
-    .from(organizations)
-    .where(
-      and(
-        publicVisibility(),
-        sql`exists (select 1 from ${organizationServices} os where os.organization_id = ${organizations.id} and os.service_code in ${serviceCodes})`,
-      ),
-    );
+  const candidateWhere = and(
+    publicVisibility(),
+    sql`exists (select 1 from ${organizationServices} os where os.organization_id = ${organizations.id} and os.service_code in ${serviceCodes})`,
+  );
+  // Related rows are selected with a subquery, not a list of thousands of bound ids (ENG-04).
+  const idsQ = db.select({ id: organizations.id }).from(organizations).where(candidateWhere);
+  const [orgs, svc, juris, inds, creds, people] = await Promise.all([
+    db.select().from(organizations).where(candidateWhere),
+    db.select().from(organizationServices).where(inArray(organizationServices.organizationId, idsQ)),
+    db.select().from(organizationJurisdictions).where(inArray(organizationJurisdictions.organizationId, idsQ)),
+    db.select().from(organizationIndustries).where(inArray(organizationIndustries.organizationId, idsQ)),
+    db.select().from(credentials).where(inArray(credentials.organizationId, idsQ)),
+    db.select({ id: professionals.id, org: professionals.organizationId }).from(professionals).where(and(inArray(professionals.organizationId, idsQ), isNull(professionals.removedAt))),
+  ]);
   if (orgs.length === 0) return [];
   const ids = orgs.map((o) => o.id);
-  const [svc, juris, inds, creds, people, cap] = await Promise.all([
-    db.select().from(organizationServices).where(inArray(organizationServices.organizationId, ids)),
-    db.select().from(organizationJurisdictions).where(inArray(organizationJurisdictions.organizationId, ids)),
-    db.select().from(organizationIndustries).where(inArray(organizationIndustries.organizationId, ids)),
-    db.select().from(credentials).where(inArray(credentials.organizationId, ids)),
-    db.select({ id: professionals.id, org: professionals.organizationId }).from(professionals).where(inArray(professionals.organizationId, ids)),
-    capacityRemaining(db, ids, now),
-  ]);
+  const cap = await capacityRemaining(db, ids, now);
   const personIds = people.map((p) => p.id);
-  const personCreds = personIds.length ? await db.select().from(credentials).where(inArray(credentials.professionalId, personIds)) : [];
+  const personCreds = personIds.length
+    ? await db
+        .select()
+        .from(credentials)
+        .where(inArray(credentials.professionalId, db.select({ id: professionals.id }).from(professionals).where(and(inArray(professionals.organizationId, idsQ), isNull(professionals.removedAt)))))
+    : [];
   const activeUsers = await db
     .select({ org: users.organizationId })
     .from(users)
-    .where(and(inArray(users.organizationId, ids), eq(users.role, "provider"), eq(users.disabled, false), isNotNull(users.emailVerifiedAt)));
+    .where(and(inArray(users.organizationId, idsQ), eq(users.role, "provider"), eq(users.disabled, false), isNotNull(users.emailVerifiedAt)));
   const activeUserOrgs = new Set(activeUsers.map((u) => u.org));
-  return orgs.map((o) => {
-    const myPeople = new Set(people.filter((p) => p.org === o.id).map((p) => p.id));
-    return {
-      id: o.id,
-      name: o.tradeName ?? o.legalName,
-      slug: o.slug,
-      emirate: o.emirate,
-      listingStatus: o.listingStatus,
-      acceptingEnquiries: o.acceptingEnquiries,
-      // Claimed AND someone can actually receive the lead (an active provider user).
-      claimed: o.claimState === "claimed" && activeUserOrgs.has(o.id),
-      capacityRemaining: cap.get(o.id) ?? 0,
-      services: svc.filter((s) => s.organizationId === o.id).map((s) => s.serviceCode),
-      jurisdictions: juris.filter((j) => j.organizationId === o.id).map((j) => j.jurisdictionCode),
-      industries: inds.filter((i) => i.organizationId === o.id).map((i) => i.industryCode),
-      languages: o.languages,
-      sizeBand: o.sizeBand,
-      credentials: [
-        ...creds.filter((c) => c.organizationId === o.id).map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), holder: "organization" as const })),
-        ...personCreds
-          .filter((c) => c.professionalId && myPeople.has(c.professionalId))
-          .map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), holder: "professional" as const })),
-      ],
-    };
-  });
+  // Group related rows once (linear), instead of filtering every array per provider (quadratic) (ENG-04).
+  const group = <T,>(rows: T[], key: (r: T) => string | null) => {
+    const m = new Map<string, T[]>();
+    for (const r of rows) {
+      const k = key(r);
+      if (k === null) continue;
+      const list = m.get(k);
+      if (list) list.push(r);
+      else m.set(k, [r]);
+    }
+    return m;
+  };
+  const svcBy = group(svc, (r) => r.organizationId);
+  const jurisBy = group(juris, (r) => r.organizationId);
+  const indsBy = group(inds, (r) => r.organizationId);
+  const credsBy = group(creds, (r) => r.organizationId);
+  const personOrg = new Map(people.map((p) => [p.id, p.org]));
+  const personCredsBy = group(personCreds, (r) => (r.professionalId ? (personOrg.get(r.professionalId) ?? null) : null));
+  return orgs.map((o) => ({
+    id: o.id,
+    name: o.tradeName ?? o.legalName,
+    slug: o.slug,
+    emirate: o.emirate,
+    listingStatus: o.listingStatus,
+    acceptingEnquiries: o.acceptingEnquiries,
+    // Claimed AND someone can actually receive the lead (an active, verified provider user).
+    claimed: o.claimState === "claimed" && activeUserOrgs.has(o.id),
+    capacityRemaining: cap.get(o.id) ?? 0,
+    services: (svcBy.get(o.id) ?? []).map((r) => r.serviceCode),
+    jurisdictions: (jurisBy.get(o.id) ?? []).map((r) => r.jurisdictionCode),
+    industries: (indsBy.get(o.id) ?? []).map((r) => r.industryCode),
+    languages: o.languages,
+    sizeBand: o.sizeBand,
+    credentials: [
+      ...(credsBy.get(o.id) ?? []).map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), holder: "organization" as const })),
+      ...(personCredsBy.get(o.id) ?? []).map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), holder: "professional" as const })),
+    ],
+  }));
 }
 
 /** Active, clearly-labelled sponsored placements. Never mixed into organic ranking. */

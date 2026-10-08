@@ -17,6 +17,7 @@ export const EVENTS = [
   "claim_submitted",
   "recipient_accepted",
   "recipient_declined",
+  "provider_matched", // one per provider shown in a buyer's matches (props.orgId)
 ] as const;
 export type EventName = (typeof EVENTS)[number];
 

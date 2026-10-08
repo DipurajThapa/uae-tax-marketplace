@@ -90,6 +90,10 @@ export function MatchWizard({ preselect, initialService }: Props) {
     setFormError(null);
     startTransition(async () => {
       const res = await findMatchesAction(answers);
+      if (!res.ok && res.errors.form) {
+        setFormError(res.errors.form);
+        return;
+      }
       if (!res.ok) {
         setErrors(res.errors);
         setFormError("Some answers need attention.");
