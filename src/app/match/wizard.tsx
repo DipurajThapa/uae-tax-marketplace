@@ -19,12 +19,12 @@ import { findMatchesAction, submitEnquiryAction, consentTextAction, type MatchVi
 
 type Step = "needs" | "business" | "details" | "preferences" | "results" | "contact";
 const STEP_LABELS: Record<Step, string> = {
-  needs: "Your needs",
-  business: "Your business",
+  needs: "Needs",
+  business: "Business",
   details: "Details",
   preferences: "Preferences",
   results: "Matches",
-  contact: "Send enquiry",
+  contact: "Contact",
 };
 
 type Props = { preselect: { id: string; name: string; services: string[]; emirate: string } | null; initialService?: string };
@@ -152,7 +152,7 @@ export function MatchWizard({ preselect, initialService }: Props) {
       <ol className="steps" aria-label="Progress">
         {steps.map((s, i) => (
           <li key={s} aria-current={s === step ? "step" : undefined} className={i < idx ? "done" : undefined}>
-            {i + 1}. {STEP_LABELS[s]}
+            <span className="step-num">{i + 1}.</span> <span className="step-label">{STEP_LABELS[s]}</span>
           </li>
         ))}
       </ol>
