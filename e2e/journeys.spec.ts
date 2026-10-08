@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { nextCode } from "./mfa";
+import { nextCode, E2E_TOTP_SECRETS } from "./mfa";
 
 /**
  * Cross-system scenarios from the product directive, exercised in a real browser against
@@ -15,7 +15,7 @@ async function signIn(page: Page, email: string) {
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((u) => !(u.pathname === "/login"));
   if (new URL(page.url()).pathname === "/login/mfa") {
-    await page.getByLabel("Authentication code").fill(await nextCode());
+    await page.getByLabel("Authentication code").fill(await nextCode(E2E_TOTP_SECRETS[email]));
     await page.getByRole("button", { name: "Verify" }).click();
     await page.waitForURL((u) => !u.pathname.startsWith("/login"));
   }
@@ -175,7 +175,7 @@ test("ENG-13: staff need a second factor; a wrong code and a password alone get 
   await page.getByLabel("Authentication code").fill("000000");
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page.getByText("That code did not work")).toBeVisible();
-  await page.getByLabel("Authentication code").fill(await nextCode());
+  await page.getByLabel("Authentication code").fill(await nextCode(E2E_TOTP_SECRETS["admin@e2e.invalid"]));
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/admin/);
   await signOut(page);
@@ -208,6 +208,40 @@ test("ENG-07: a provider adds a person and submits an individual registration", 
   await page.getByRole("button", { name: "Submit for review" }).click();
   await expect(page.getByText("Submitted for review")).toBeVisible();
   await expect(page.getByRole("cell", { name: "In review" })).toBeVisible();
+  await signOut(page);
+});
+
+test("ENG-09: an admin writes, gates and publishes a guide; reviewers cannot publish", async ({ page }) => {
+  test.setTimeout(90_000);
+  await signIn(page, "admin@e2e.invalid");
+  await page.goto("/admin/guides");
+  await page.getByText("New guide").click();
+  await page.getByLabel("Title").fill("E2E guide: how registrations are shown");
+  await page.getByLabel("Address (slug)").fill("e2e-registrations-guide");
+  await page.getByLabel("Summary").fill("A test guide explaining how this directory shows the three kinds of registration.");
+  await page.getByLabel("Body (Markdown)").fill("## Overview\n\n" + "This paragraph is test content for the end-to-end guide editor check. ".repeat(6));
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+  await expect(page.getByText("At least one official (Tier 1) source is required")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
+
+  await page.getByLabel("Sources").fill("1 | 2026-10-01 | Federal Tax Authority | https://tax.gov.ae");
+  await page.getByLabel("Reviewer name").fill("E2E Reviewer");
+  await page.getByLabel("Reviewer credential").fill("FTA-listed tax agent");
+  await page.getByLabel("Review date").fill("2026-10-01");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("All checks pass.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published", { exact: true })).toBeVisible();
+  const editUrl = page.url();
+  await page.goto("/guides/e2e-registrations-guide");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("E2E guide: how registrations are shown");
+  await expect(page.getByText("Reviewed by E2E Reviewer")).toBeVisible();
+  await signOut(page);
+
+  await signIn(page, "reviewer@e2e.invalid");
+  await page.goto(editUrl);
+  await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(0);
   await signOut(page);
 });
 

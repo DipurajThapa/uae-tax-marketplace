@@ -9,7 +9,7 @@ import { normalizeName, slugify } from "../src/lib/text";
 import { verifyCredential } from "../src/lib/verification";
 import { userActor } from "../src/lib/audit";
 import { encryptSecret } from "../src/lib/mfa";
-import { E2E_TOTP_SECRET } from "./mfa";
+import { E2E_TOTP_SECRETS } from "./mfa";
 
 const db = getDb();
 await db.execute(sql`drop schema if exists public cascade; create schema public; drop schema if exists drizzle cascade;`);
@@ -25,8 +25,8 @@ const [src] = await db.insert(s.dataSources).values([
 ]).returning();
 
 const pw = await hashPassword("e2e-password-123");
-const [admin] = await db.insert(s.users).values({ email: "admin@e2e.invalid", name: "E2E Admin", role: "admin", passwordHash: pw, emailVerifiedAt: new Date(), totpSecretEnc: encryptSecret(E2E_TOTP_SECRET), totpEnabledAt: new Date() }).returning();
-await db.insert(s.users).values({ email: "reviewer@e2e.invalid", name: "E2E Reviewer", role: "reviewer", passwordHash: pw, emailVerifiedAt: new Date(), totpSecretEnc: encryptSecret(E2E_TOTP_SECRET), totpEnabledAt: new Date() });
+const [admin] = await db.insert(s.users).values({ email: "admin@e2e.invalid", name: "E2E Admin", role: "admin", passwordHash: pw, emailVerifiedAt: new Date(), totpSecretEnc: encryptSecret(E2E_TOTP_SECRETS["admin@e2e.invalid"]!), totpEnabledAt: new Date() }).returning();
+await db.insert(s.users).values({ email: "reviewer@e2e.invalid", name: "E2E Reviewer", role: "reviewer", passwordHash: pw, emailVerifiedAt: new Date(), totpSecretEnc: encryptSecret(E2E_TOTP_SECRETS["reviewer@e2e.invalid"]!), totpEnabledAt: new Date() });
 
 async function org(name: string, o: { services: string[]; emirate?: string; claimed?: boolean; verify?: string[]; languages?: string[]; user?: string }) {
   const [row] = await db

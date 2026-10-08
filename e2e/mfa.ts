@@ -1,7 +1,11 @@
 import { totp, stepAt, hotp, base32Decode } from "../src/lib/totp";
 
-/** Throwaway TOTP secret for E2E staff fixtures only (test database). */
+/** Throwaway TOTP secrets for E2E staff fixtures only (test database). One per account, so codes never collide. */
 export const E2E_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+export const E2E_TOTP_SECRETS: Record<string, string> = {
+  "admin@e2e.invalid": "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
+  "reviewer@e2e.invalid": "KRSXG5CTMVRXEZLUKN2XAZLSKNSWG4TF",
+};
 
 const lastStep = new Map<string, number>();
 
