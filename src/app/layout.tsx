@@ -4,10 +4,12 @@ import "./globals.css";
 import { config } from "@/lib/config";
 import { BRAND } from "@/lib/brand";
 import { currentUser } from "@/lib/session";
+import { LogoMark } from "@/components/logo";
 
 export const metadata: Metadata = {
   metadataBase: new URL(config.siteUrl),
-  title: { default: `${BRAND.name}: find UAE tax and e-invoicing professionals`, template: `%s | ${BRAND.name}` },
+  title: { default: `${BRAND.name}: ${BRAND.descriptor}`, template: `%s | ${BRAND.name}` },
+  applicationName: BRAND.name,
   description: BRAND.description,
   robots: config.allowIndexing ? undefined : { index: false, follow: false },
 };
@@ -25,7 +27,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
         <header className="site-header">
           <div className="container bar">
-            <Link href="/" className="logo"><span className="logo-mark" aria-hidden="true" />{BRAND.name}</Link>
+            <Link href="/" className="logo"><LogoMark />{BRAND.name}</Link>
             <nav className="nav" aria-label="Main">
               <Link href="/providers">Find providers</Link>
               <Link href="/match">Get matched</Link>
@@ -47,8 +49,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <footer className="site-footer">
           <div className="container cols">
             <div>
-              <strong>{BRAND.name}</strong>
-              <p className="small">A directory of UAE tax and e-invoicing professionals. We do not give tax advice. Registration badges appear only after we check them against an official source or document.</p>
+              <strong>{BRAND.name}</strong> <span lang="ar" dir="rtl">{BRAND.nameAr}</span>
+              <p className="small">{BRAND.name} is a {BRAND.descriptor}. We do not give tax advice. Registration badges appear only after we check them against an official source or document.</p>
+              <p className="small"><strong>{BRAND.independence}</strong></p>
             </div>
             <div>
               <ul>

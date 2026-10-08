@@ -31,3 +31,6 @@ Engineering work that can be done without these answers is done. Each answer unb
 | Q9 | Use Claude's legal skills | **Not possible for this role.** The guide gate needs a named human professional with a credential, because the "Reviewed by" line is a public statement that a qualified person checked the text. An AI review cannot be that person. Claude can pre-review drafts (sources, copy rules) to save the reviewer's time. Candidate profile and sourcing in the decision memo |
 | Q10 | `*.gov.ae` allowed | **Not yet effective in this session.** The egress proxy still refuses tax.gov.ae (HTTP 403, organisation policy), and the web fetch tool cannot resolve `.ae` names. The environment's allowed domains need `tax.gov.ae`, `mof.gov.ae`, `u.ae`, `uaelegislation.gov.ae` (or `*.gov.ae`, `*.ae`), then a new session. RG-01 stays open |
 | Q11 | Private staging approved | Staging access gate built (HTTP Basic, fail closed, noindex). Deploying needs a hosting account in the owner's name (billable) and secrets. Steps in `docs/RUNBOOK.md` "Private staging" |
+
+### Round 2 (2026-10-08)
+- Q3: **Taxdar** chosen. App rebranded (name, descriptor, Arabic name, independence line, logo, favicon, structured data, email subjects). Still to do: registrar, trade-mark and trade-name checks before buying the domain.

@@ -22,7 +22,7 @@ Ministry of Finance
 
 Dear Sir or Madam,
 
-[Company legal name], licensed in [emirate / free zone] under licence number [number], is preparing to launch [Brand]. It is an online directory where UAE businesses can find e-invoicing service providers and tax agents and contact them. The service is not yet public.
+[Company legal name], licensed in [emirate / free zone] under licence number [number], is preparing to launch Taxdar. It is an online directory where UAE businesses can find e-invoicing service providers and tax agents and contact them. The service is not yet public.
 
 Many businesses will be choosing an e-invoicing provider over the coming months. We would like to help them do so with accurate information. Our approach relies on the list of accredited service providers that the Ministry publishes, and we would like to confirm that our approach is acceptable to the Ministry.
 

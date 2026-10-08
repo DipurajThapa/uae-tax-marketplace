@@ -4,6 +4,7 @@ import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import { notifications, enquiryRecipients } from "@/db/schema";
 import { config } from "./config";
+import { BRAND } from "./brand";
 import { audit, SYSTEM, type Actor } from "./audit";
 
 export type Template = "provider_new_enquiry" | "buyer_enquiry_receipt" | "claim_decision" | "account_created" | "provider_enquiry_withdrawn" | "password_reset" | "verify_email";
@@ -50,12 +51,17 @@ export async function enqueue(
  * so personal data is not spread across mailboxes and access is logged.
  */
 export function render(template: Template, p: Record<string, unknown>): Omit<Mail, "to"> {
+  const m = renderBody(template, p);
+  return { subject: `${BRAND.name}: ${m.subject}`, text: `${m.text}\n\n${BRAND.name}, ${BRAND.descriptor}. ${BRAND.independence}` };
+}
+
+function renderBody(template: Template, p: Record<string, unknown>): Omit<Mail, "to"> {
   const site = config.siteUrl;
   switch (template) {
     case "provider_new_enquiry":
       return {
         subject: `New enquiry ${p.ref} for ${p.orgName}`,
-        text: `A business has chosen to contact ${p.orgName} through the directory.\n\nServices requested: ${(p.services as string[]).join(", ")}\nEmirate: ${p.emirate}\n\nSign in to view the enquiry and the contact details: ${site}/provider/enquiries/${p.recipientId}\n\nPlease accept or decline within 2 business days so the business can look elsewhere if needed.`,
+        text: `A business has chosen to contact ${p.orgName} through Taxdar.\n\nServices requested: ${(p.services as string[]).join(", ")}\nEmirate: ${p.emirate}\n\nSign in to view the enquiry and the contact details: ${site}/provider/enquiries/${p.recipientId}\n\nPlease accept or decline within 2 business days so the business can look elsewhere if needed.`,
       };
     case "buyer_enquiry_receipt":
       return {
@@ -80,7 +86,7 @@ export function render(template: Template, p: Record<string, unknown>): Omit<Mai
     case "verify_email":
       return {
         subject: "Confirm your email address",
-        text: `Please confirm this email address so your firm can receive enquiries through the directory: ${site}/verify-email/${p.setPasswordToken}\nThe link works once and expires in 72 hours. If you did not create a listing, ignore this email.`,
+        text: `Please confirm this email address so your firm can receive enquiries through Taxdar: ${site}/verify-email/${p.setPasswordToken}\nThe link works once and expires in 72 hours. If you did not create a listing, ignore this email.`,
       };
     case "password_reset":
       return {

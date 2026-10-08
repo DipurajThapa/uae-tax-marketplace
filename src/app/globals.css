@@ -50,7 +50,7 @@ p { margin: 0 0 1em; }
 .site-header { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; flex-wrap: wrap; }
 .logo { font-weight: 800; color: var(--ink); text-decoration: none; letter-spacing: -0.02em; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
-.logo-mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--brand), var(--accent)); display: inline-block; }
+.logo-mark { flex: none; display: inline-block; }
 .nav { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .nav a { padding: 8px 12px; border-radius: 8px; color: var(--ink-2); text-decoration: none; font-weight: 500; }
 .nav a:hover, .nav-button:hover { background: var(--brand-soft); color: var(--ink); }

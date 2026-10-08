@@ -25,7 +25,7 @@ Attention: [Taxpayer Services / Tax Agents Department, if known]
 
 Dear Sir or Madam,
 
-[Company legal name] is a company licensed in [emirate / free zone] under licence number [number]. We are preparing to launch [Brand], an online directory that helps businesses in the UAE find a qualified tax agent or e-invoicing service provider and contact them. The service is not yet open to the public.
+[Company legal name] is a company licensed in [emirate / free zone] under licence number [number]. We are preparing to launch Taxdar, an online directory that helps businesses in the UAE find a qualified tax agent or e-invoicing service provider and contact them. The service is not yet open to the public.
 
 We are writing before launch because our approach depends on the Register of Tax Agents published on the Authority's website. We want to be sure that the way we intend to use it is acceptable to the Authority.
 

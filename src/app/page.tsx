@@ -13,7 +13,8 @@ export default async function Home() {
   const categories = Object.entries(SERVICE_CATEGORIES);
   return (
     <>
-      <JsonLd data={{ "@context": "https://schema.org", "@type": "WebSite", name: BRAND.name, url: config.siteUrl, potentialAction: { "@type": "SearchAction", target: `${config.siteUrl}/providers?q={query}`, "query-input": "required name=query" } }} />
+      <JsonLd data={{ "@context": "https://schema.org", "@type": "Organization", name: BRAND.name, alternateName: BRAND.nameAr, description: BRAND.description, url: config.siteUrl, logo: `${config.siteUrl}/icon.svg` }} />
+      <JsonLd data={{ "@context": "https://schema.org", "@type": "WebSite", name: BRAND.name, alternateName: BRAND.nameAr, url: config.siteUrl, potentialAction: { "@type": "SearchAction", target: `${config.siteUrl}/providers?q={query}`, "query-input": "required name=query" } }} />
       <section className="hero">
         <div className="container">
           <h1>Find UAE tax and e-invoicing professionals whose registrations you can check</h1>

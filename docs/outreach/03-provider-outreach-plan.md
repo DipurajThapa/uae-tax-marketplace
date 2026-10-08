@@ -59,7 +59,7 @@ Track the funnel in a simple sheet with these stages: contacted → replied → 
 
 Dear [Firm name] team,
 
-I am [your name], founder of [Brand], a directory for UAE businesses looking for tax agents and e-invoicing providers. We have not launched yet. I am contacting a small number of firms that we would like to include from the start, and [Firm name] is one of them because of [specific reason: your corporate tax work for family businesses in Sharjah / your Arabic and English service / your published e-invoicing guidance].
+I am [your name], founder of Taxdar, a directory for UAE businesses looking for tax agents and e-invoicing providers. We have not launched yet. I am contacting a small number of firms that we would like to include from the start, and [Firm name] is one of them because of [specific reason: your corporate tax work for family businesses in Sharjah / your Arabic and English service / your published e-invoicing guidance].
 
 How it works, briefly:
 - businesses answer a few questions about what they need;
@@ -85,7 +85,7 @@ Kind regards,
 
 Dear [Firm name] team,
 
-A short follow-up to my note last week about [Brand]. If a call isn't convenient, I'm happy to send a two-minute walkthrough instead.
+A short follow-up to my note last week about Taxdar. If a call isn't convenient, I'm happy to send a two-minute walkthrough instead.
 
 If now is not the right time, no reply is needed and I won't write again.
 
@@ -94,7 +94,7 @@ Kind regards,
 
 ### 4c. LinkedIn connection note (max 300 characters). ON HOLD until counsel confirms
 
-Hello [Name], I'm building [Brand], a UAE directory where businesses find tax agents and e-invoicing providers, with registrations checked before they show as verified. I'd value 20 minutes of your view on pricing before launch. Open to a quick call?
+Hello [Name], I'm building Taxdar, a UAE directory where businesses find tax agents and e-invoicing providers, with registrations checked before they show as verified. I'd value 20 minutes of your view on pricing before launch. Open to a quick call?
 
 ### 4d. Reply to a firm that wants to list
 
