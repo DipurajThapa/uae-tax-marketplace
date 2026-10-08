@@ -37,8 +37,10 @@ type Insertable = Pick<DB, "insert">;
 export async function enqueue(
   db: Insertable,
   n: { to: string; template: Template; payload: Record<string, unknown>; enquiryRecipientId?: string },
+  now: Date = new Date(),
 ): Promise<void> {
-  await db.insert(notifications).values({ toAddress: n.to, template: n.template, payload: n.payload, enquiryRecipientId: n.enquiryRecipientId ?? null });
+  // Due time comes from the injected clock, not the DB clock, so scheduling is deterministic.
+  await db.insert(notifications).values({ toAddress: n.to, template: n.template, payload: n.payload, enquiryRecipientId: n.enquiryRecipientId ?? null, nextAttemptAt: now, createdAt: now });
 }
 
 /**

@@ -74,7 +74,7 @@ export async function requestPasswordReset(db: DB, emailRaw: string, ctx: { ip: 
   if (!u || u.disabled) return;
   await db.transaction(async (tx) => {
     const token = await issuePasswordToken(tx, u.id, ctx.now, 1);
-    await enqueue(tx, { to: u.email, template: "password_reset", payload: { setPasswordToken: token } });
+    await enqueue(tx, { to: u.email, template: "password_reset", payload: { setPasswordToken: token } }, ctx.now);
     await audit(tx, userActor(u.id), "user.password_reset_requested", "user", u.id);
   });
 }
@@ -100,7 +100,7 @@ export async function approveClaim(db: DB, actor: Actor, claimId: string, note: 
     const token = await issuePasswordToken(tx, userId, now);
     await tx.update(organizations).set({ claimState: "claimed", updatedAt: now }).where(eq(organizations.id, org.id));
     await tx.update(claims).set({ state: "approved", reviewedBy: actor.userId, reviewedAt: now, reviewNote: note, createdUserId: userId }).where(eq(claims.id, claimId));
-    await enqueue(tx, { to: cl.claimantEmail, template: "claim_decision", payload: { approved: true, orgName: org.tradeName ?? org.legalName, setPasswordToken: token } });
+    await enqueue(tx, { to: cl.claimantEmail, template: "claim_decision", payload: { approved: true, orgName: org.tradeName ?? org.legalName, setPasswordToken: token } }, now);
     await audit(tx, actor, "claim.approved", "claim", claimId, { organizationId: org.id, userId });
   });
 }
@@ -114,7 +114,7 @@ export async function rejectClaim(db: DB, actor: Actor, claimId: string, note: s
     const [otherPending] = await tx.select({ id: claims.id }).from(claims).where(and(eq(claims.organizationId, cl.organizationId), eq(claims.state, "pending")));
     if (!otherPending && org?.claimState === "claim_pending")
       await tx.update(organizations).set({ claimState: "unclaimed" }).where(eq(organizations.id, cl.organizationId));
-    await enqueue(tx, { to: cl.claimantEmail, template: "claim_decision", payload: { approved: false, orgName: org?.tradeName ?? org?.legalName ?? "", note } });
+    await enqueue(tx, { to: cl.claimantEmail, template: "claim_decision", payload: { approved: false, orgName: org?.tradeName ?? org?.legalName ?? "", note } }, now);
     await audit(tx, actor, "claim.rejected", "claim", claimId, { note });
   });
 }

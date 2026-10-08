@@ -173,9 +173,9 @@ export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: strin
               emirate: EMIRATE_BY_CODE[assessment.emirate]?.name ?? assessment.emirate,
             },
             enquiryRecipientId: rec!.id,
-          });
+          }, ctx.now);
       }
-      await enqueue(tx, { to: email, template: "buyer_enquiry_receipt", payload: { ref, name: contact.data.contactName, providers: names, manageToken } });
+      await enqueue(tx, { to: email, template: "buyer_enquiry_receipt", payload: { ref, name: contact.data.contactName, providers: names, manageToken } }, ctx.now);
       await audit(tx, PUBLIC, "enquiry.created", "enquiry", enq!.id, { ref, recipients: selected, services: assessment.services });
     });
   } catch (e) {
@@ -217,7 +217,7 @@ export async function eraseEnquiry(db: DB, actor: Actor, enquiryId: string, now 
     // The buyer's receipt holds their name, email and manage token: remove it too.
     await tx.delete(notifications).where(and(eq(notifications.template, "buyer_enquiry_receipt"), sql`${notifications.payload}->>'ref' = ${enq.publicRef}`));
     await tx.update(enquiryRecipients).set({ status: "closed" }).where(eq(enquiryRecipients.enquiryId, enquiryId));
-    for (const u of providerUsers) await enqueue(tx, { to: u.email, template: "provider_enquiry_withdrawn", payload: { ref: enq.publicRef } });
+    for (const u of providerUsers) await enqueue(tx, { to: u.email, template: "provider_enquiry_withdrawn", payload: { ref: enq.publicRef } }, now);
     await audit(tx, actor, "enquiry.erased", "enquiry", enquiryId, { ref: enq.publicRef });
   });
 }
