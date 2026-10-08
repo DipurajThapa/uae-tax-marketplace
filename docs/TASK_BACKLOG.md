@@ -28,18 +28,19 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-01 | Data model, migrations, DB invariants | COMPLETE | integrity tests pass |
 | ENG-02 | Search, profile, compare, landing pages, SEO plumbing | COMPLETE | E2E 1 + SEO test |
 | ENG-03 | Needs assessment, matching, consented enquiry, routing, outbox | COMPLETE | E2E 2/3/7, integration |
-| ENG-04 | Batch `capacityRemaining` / candidate loading for >1,000 listings | NOT STARTED | p95 match < 300 ms at 5k listings |
+| ENG-04 | Batch `capacityRemaining` / candidate loading for >1,000 listings | COMPLETE | p95 242 ms at 5,000 listings (`npm run bench:matching`) |
 | ENG-05 | Live payment adapter (Stripe Billing or UAE PSP) behind the `BillingProvider` interface, with signed webhooks | BLOCKED (OPS-02) | test-mode checkout E2E |
 | ENG-06 | SMTP/API mail transport | BLOCKED (OPS-03) | outbox sends; bounces handled |
-| ENG-07 | Individual professionals: add people + FTA_TAX_AGENT submissions in provider UI | NOT STARTED | provider adds a person; reviewer verifies |
+| ENG-07 | Individual professionals: add people + FTA_TAX_AGENT submissions in provider UI | COMPLETE | integration "ENG-07" + E2E |
 | ENG-08 | Self-service password reset (email link) | COMPLETE | integration test "password reset" |
-| ENG-09 | Admin article editor (guides CMS UI; gate exists in `articles.ts`) | NOT STARTED | publish blocked without reviewer + Tier-1 source |
-| ENG-10 | Provider monthly lead-quality report email + dashboard analytics (paid feature) | NOT STARTED | report renders from data |
-| ENG-11 | Lighthouse CI budget in CI | NOT STARTED | LCP < 2.5 s mobile on key pages |
+| ENG-09 | Admin article editor (guides CMS UI; gate exists in `articles.ts`) | COMPLETE | integration "ENG-09" + E2E |
+| ENG-10 | Provider dashboard analytics (paid feature) | COMPLETE (dashboard); monthly email waits on OPS-03 | integration "ENG-10" + E2E |
+| ENG-11 | Lighthouse CI budget in CI | COMPLETE | 5 pages, scores 0.98–0.99, LCP ≤ 2.2 s (mobile, simulated) |
 | ENG-12 | Arabic UI (RTL) | DEFERRED | — |
-| ENG-13 | MFA for staff accounts | NOT STARTED | TOTP for admin/reviewer |
+| ENG-16 | Optional MFA for provider accounts | NOT STARTED | providers can enrol TOTP from their dashboard |
+| ENG-13 | MFA for staff accounts | COMPLETE | RFC 6238 vectors, integration, E2E |
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
-| ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | NOT STARTED | CSP has no unsafe-inline; E2E passes |
+| ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | COMPLETE | E2E "ENG-15": zero CSP violations |
 
 Items from the adversarial review are added below when it reports (see `EVIDENCE_LOG.md`).
 
@@ -58,4 +59,4 @@ Items from the adversarial review are added below when it reports (see `EVIDENCE
 | RV-L10a | `//host` markdown links treated as internal | COMPLETE | Unit test |
 | RV-L10b | Demo badge missing on compare | COMPLETE | — |
 | RV-L10c | Sponsored block ignores some filters | COMPLETE | Hidden when keyword, type, language, zone or verification filters are active |
-| RV-L10d | CSP allows `'unsafe-inline'` scripts | ACCEPTED (tracked) | Needs nonce-based CSP via middleware; do before launch (ENG-15) |
+| RV-L10d | CSP allows `'unsafe-inline'` scripts | COMPLETE | ENG-15 |

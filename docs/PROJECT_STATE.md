@@ -13,18 +13,18 @@ Stage 7 (hardening) for the first release candidate. Stages 0–6 are implemente
 | Matching and leads: assessment, matching, consent, routing, outbox, erasure, retention | COMPLETE |
 | SEO/AEO plumbing | COMPLETE (technical only; no indexing claimed) |
 | Commercial systems | COMPLETE in test mode; live billing BLOCKED (OPS-02) |
-| Hardening: adversarial review, fixes | COMPLETE except M10 (counsel) and nonce CSP (ENG-15) |
+| Hardening: adversarial review, fixes | COMPLETE except M10 (counsel); second review of new features in progress |
 | Production readiness: Dockerfile, health, runbook, backups | IN PROGRESS (hosting BLOCKED, OPS-01) |
 | Real supply and real content | BLOCKED (BIZ-04, CT-01) |
 
 ## Where things are
-- Repo: `DipurajThapa/uae-tax-marketplace`. `main` contains PR #1 (merged). The review follow-ups are on `claude/fervent-newton-l7gdzb` in a new PR.
-- Local DBs: `marketplace_dev` (demo), `marketplace_test`, `marketplace_e2e`.
+- Repo `DipurajThapa/uae-tax-marketplace`: PRs #1 and #2 merged; PR #3 (ENG-15/13/07/09/10/04/11) open on `claude/fervent-newton-l7gdzb`.
+- Local DBs: `marketplace_dev` (demo), `marketplace_test`, `marketplace_e2e`, `marketplace_bench`.
 
 ## Next executable task
-1. Merge the follow-ups PR once CI is green.
-2. ENG-15 nonce-based CSP; ENG-07 individual professionals UI; ENG-09 guide editor.
-3. Everything else waits on owner or counsel items (TASK_BACKLOG "Launch blockers").
+1. Get PR #3 green and merged; fix findings from the second adversarial review.
+2. Engineering left without owner input: ENG-16 (optional provider MFA).
+3. Everything else is blocked on the owner or counsel: see `docs/OWNER_QUESTIONS.md`.
 
 ## How to resume
 `cat docs/PROJECT_STATE.md docs/TASK_BACKLOG.md`, then `npm ci && npm run db:migrate && npm run db:seed -- --demo && npm run check`.

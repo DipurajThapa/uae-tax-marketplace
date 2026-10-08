@@ -8,9 +8,12 @@ All runs on 2026-10-08 in the build sandbox unless noted. "CI" means GitHub Acti
 | Typecheck | pass | `npm run typecheck` |
 | ESLint | pass | `npm run lint` |
 | Copy lint | pass (68 files); planted "guaranteed" fails with file:line (exit 1) | `npm run lint:copy` |
-| Unit + integration (real Postgres) | **81 / 81 pass**, also with `ALLOW_SYNTHETIC_DATA=true` in the environment (the CI condition) | `npm test` |
+| Unit + integration (real Postgres) | **94 / 94 pass**, also with `ALLOW_SYNTHETIC_DATA=true` in the environment (the CI condition) | `npm test` |
 | Production build | pass, 50 routes | `npm run build` |
-| Browser E2E (Playwright, Chromium, production build) | **12 / 12 pass** (adds L3 signed messages, L4 logout) | `npm run test:e2e` |
+| Browser E2E (Playwright, Chromium, production build) | **17 / 17 pass** (adds CSP, staff MFA, people, guide editor, insights) |
+| Performance budget (Lighthouse mobile) | pass on 5 pages: score 0.98–0.99, LCP 1.55–2.20 s, CLS 0, TBT 42–97 ms, JS ~140–178 KB | `npm run perf:budget` |
+| Matching latency at 5,000 listings | p50 127 ms, p95 242 ms (was 6,518 / 7,084 ms) | `npm run bench:matching` |
+| TOTP | RFC 6238 SHA-1 vectors pass (T=59, 1111111109, 1234567890) | unit | `npm run test:e2e` |
 | Restore drill | pass: row counts equal; audit trigger survives restore | `scripts/restore-drill.sh` |
 | Response time (warm, local) | ~20 ms per page; HTML 16–32 KB | curl against `next start` |
 
