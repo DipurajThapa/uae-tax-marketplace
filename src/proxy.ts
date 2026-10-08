@@ -13,14 +13,8 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
+// Every response gets the CSP, prefetches included (review2 M6). Only exact static paths are skipped:
+// the exclusions are anchored, so a look-alike such as /api/health-x or /favicon.ico.html is covered.
 export const config = {
-  matcher: [
-    {
-      source: "/((?!_next/static|_next/image|favicon.ico|api/health).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
-    },
-  ],
+  matcher: ["/((?!_next/static/|_next/image$|favicon\\.ico$|api/health$).*)"],
 };

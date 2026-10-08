@@ -13,7 +13,7 @@ Stage 7 (hardening) for the first release candidate. Stages 0–6 are implemente
 | Matching and leads: assessment, matching, consent, routing, outbox, erasure, retention | COMPLETE |
 | SEO/AEO plumbing | COMPLETE (technical only; no indexing claimed) |
 | Commercial systems | COMPLETE in test mode; live billing BLOCKED (OPS-02) |
-| Hardening: adversarial review, fixes | COMPLETE except M10 (counsel); second review of new features in progress |
+| Hardening: adversarial review, fixes | COMPLETE except M10 (counsel); second review fixed, provider MFA accepted as R-11 |
 | Production readiness: Dockerfile, health, runbook, backups | IN PROGRESS (hosting BLOCKED, OPS-01) |
 | Real supply and real content | BLOCKED (BIZ-04, CT-01) |
 
@@ -22,7 +22,7 @@ Stage 7 (hardening) for the first release candidate. Stages 0–6 are implemente
 - Local DBs: `marketplace_dev` (demo), `marketplace_test`, `marketplace_e2e`, `marketplace_bench`.
 
 ## Next executable task
-1. Get PR #3 green and merged; fix findings from the second adversarial review.
+1. Get PR #3 green and merged (second-review fixes included).
 2. Engineering left without owner input: ENG-16 (optional provider MFA).
 3. Everything else is blocked on the owner or counsel: see `docs/OWNER_QUESTIONS.md`.
 

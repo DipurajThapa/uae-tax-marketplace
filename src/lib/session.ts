@@ -8,7 +8,7 @@ import { randomToken, sha256, verifyPassword, keyedHash } from "./crypto";
 import { normalizeEmail } from "./text";
 import { rateLimit } from "./ratelimit";
 import { audit, userActor, PUBLIC } from "./audit";
-import { MFA_REQUIRED_ROLES } from "./mfa";
+import { MFA_REQUIRED_ROLES, rotateSession } from "./mfa";
 
 const COOKIE = "sid";
 const TTL_HOURS = 12;
@@ -56,16 +56,28 @@ export async function login(emailRaw: string, password: string): Promise<{ ok: t
   const token = randomToken();
   const stage: SessionStage = MFA_REQUIRED_ROLES.has(u.role) ? (u.totpEnabledAt ? "mfa" : "enroll") : "full";
   await db.insert(sessions).values({ id: sha256(token), userId: u.id, stage, expiresAt: new Date(Date.now() + TTL_HOURS * 3600_000) });
-  const jar = await cookies();
-  jar.set(COOKIE, token, {
+  await setCookie(token, TTL_HOURS * 3600);
+  await audit(db, userActor(u.id), "auth.login", "user", u.id);
+  return { ok: true, user: { id: u.id, email: u.email, name: u.name, role: u.role, organizationId: u.organizationId, stage, sessionId: sha256(token) } };
+}
+
+async function setCookie(token: string, maxAgeSeconds: number) {
+  (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production" && !process.env.SITE_URL?.startsWith("http://"),
     path: "/",
-    maxAge: TTL_HOURS * 3600,
+    maxAge: maxAgeSeconds,
   });
-  await audit(db, userActor(u.id), "auth.login", "user", u.id);
-  return { ok: true, user: { id: u.id, email: u.email, name: u.name, role: u.role, organizationId: u.organizationId, stage, sessionId: sha256(token) } };
+}
+
+/** After the second factor: replace the session with a fresh id at stage "full" (review2 L5). */
+export async function upgradeSession(user: SessionUser): Promise<void> {
+  const db = getDb();
+  const [s] = await db.select({ expiresAt: sessions.expiresAt }).from(sessions).where(eq(sessions.id, user.sessionId));
+  if (!s) redirect("/login");
+  const token = await rotateSession(db, user.sessionId, "full");
+  await setCookie(token, Math.max(60, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)));
 }
 
 export async function logout(): Promise<void> {

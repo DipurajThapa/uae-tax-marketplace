@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { DB } from "@/db/client";
-import { professionals, credentials, credentialSubmissions } from "@/db/schema";
+import { organizations, professionals, credentials, credentialSubmissions } from "@/db/schema";
 import { audit, type Actor } from "./audit";
 import { copyViolations } from "./copy-rules";
 import { randomToken } from "./crypto";
@@ -26,7 +26,10 @@ export async function addProfessional(db: DB, actor: Actor, organizationId: stri
   if (bad.length) return { ok: false, errors: { bio: `Please remove wording that implies a guarantee, endorsement or official approval (${bad[0]}).` } };
   const slug = `${slugify(p.data.fullName) || "person"}-${randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "")}`;
   const id = await db.transaction(async (tx) => {
-    const [row] = await tx.insert(professionals).values({ ...p.data, slug, organizationId }).returning({ id: professionals.id });
+    const [org] = await tx.select({ isSynthetic: organizations.isSynthetic }).from(organizations).where(eq(organizations.id, organizationId));
+    if (!org) throw new Error("Organisation not found");
+    // A demo firm's people are demo records too, so they can never hold a verified registration (review2 H1).
+    const [row] = await tx.insert(professionals).values({ ...p.data, slug, organizationId, isSynthetic: org.isSynthetic }).returning({ id: professionals.id });
     await audit(tx, actor, "professional.added", "organization", organizationId, { professionalId: row!.id, fullName: p.data.fullName });
     return row!.id;
   });
@@ -39,22 +42,33 @@ export async function updateProfessional(db: DB, actor: Actor, organizationId: s
   const bad = [p.data.title, p.data.bio].flatMap((t) => (t ? copyViolations(t) : []));
   if (bad.length) return { ok: false, errors: { bio: `Please remove wording that implies a guarantee, endorsement or official approval (${bad[0]}).` } };
   return db.transaction(async (tx): Promise<Result> => {
-    const [before] = await tx.select().from(professionals).where(and(eq(professionals.id, professionalId), eq(professionals.organizationId, organizationId))).for("update");
+    const [before] = await tx.select().from(professionals).where(and(eq(professionals.id, professionalId), eq(professionals.organizationId, organizationId), isNull(professionals.removedAt))).for("update");
     if (!before) return { ok: false, errors: { form: "Person not found" } };
-    // A name change on someone with verified registrations would carry the badge to a different name.
-    const [verified] = await tx.select({ id: credentials.id }).from(credentials).where(and(eq(credentials.professionalId, professionalId), eq(credentials.status, "verified")));
-    if (verified && before.fullName !== p.data.fullName) return { ok: false as const, errors: { fullName: "This person has a verified registration; contact support to change the name." } };
+    // A name change on someone whose registration is checked, being checked or disputed would carry
+    // the badge to a different name (review2 M4).
+    if (before.fullName !== p.data.fullName) {
+      const [held] = await tx
+        .select({ id: credentials.id })
+        .from(credentials)
+        .where(and(eq(credentials.professionalId, professionalId), inArray(credentials.status, ["pending", "verified", "disputed"])));
+      if (held) return { ok: false as const, errors: { fullName: "This person has a registration that is verified or under review; contact support to change the name." } };
+    }
     await tx.update(professionals).set({ ...p.data, updatedAt: new Date() }).where(eq(professionals.id, professionalId));
     await audit(tx, actor, "professional.updated", "organization", organizationId, { professionalId, from: { fullName: before.fullName, title: before.title }, to: { fullName: p.data.fullName, title: p.data.title } });
     return { ok: true as const };
   });
 }
 
-export async function removeProfessional(db: DB, actor: Actor, organizationId: string, professionalId: string) {
+/**
+ * Removes a person from the firm's listing. The row is kept (soft delete) so open disputes and
+ * submissions about their registrations still reach a reviewer (review2 M5).
+ */
+export async function removeProfessional(db: DB, actor: Actor, organizationId: string, professionalId: string, now = new Date()) {
   await db.transaction(async (tx) => {
     const removed = await tx
-      .delete(professionals)
-      .where(and(eq(professionals.id, professionalId), eq(professionals.organizationId, organizationId)))
+      .update(professionals)
+      .set({ removedAt: now, updatedAt: now })
+      .where(and(eq(professionals.id, professionalId), eq(professionals.organizationId, organizationId), isNull(professionals.removedAt)))
       .returning({ id: professionals.id, fullName: professionals.fullName });
     if (removed.length === 0) throw new Error("Person not found");
     await audit(tx, actor, "professional.removed", "organization", organizationId, { professionalId, fullName: removed[0]!.fullName });
@@ -75,7 +89,12 @@ export async function submitIndividualCredential(db: DB, actor: Actor, organizat
   if (!parsed.success) return { ok: false, errors: errorsOf(parsed.error) };
   const s = parsed.data;
   return db.transaction(async (tx): Promise<Result> => {
-    const [person] = await tx.select().from(professionals).where(and(eq(professionals.id, s.professionalId), eq(professionals.organizationId, organizationId)));
+    // Lock the person so a rename cannot slip between this check and the submission (review2 M4).
+    const [person] = await tx
+      .select()
+      .from(professionals)
+      .where(and(eq(professionals.id, s.professionalId), eq(professionals.organizationId, organizationId), isNull(professionals.removedAt)))
+      .for("update");
     if (!person) return { ok: false as const, errors: { professionalId: "Choose a person from your firm" } };
     const [existing] = await tx.select().from(credentials).where(and(eq(credentials.professionalId, person.id), eq(credentials.credentialType, s.credentialType)));
     let credentialId = existing?.id;
@@ -91,6 +110,7 @@ export async function submitIndividualCredential(db: DB, actor: Actor, organizat
     await tx.insert(credentialSubmissions).values({
       organizationId,
       professionalId: person.id,
+      professionalName: person.fullName,
       submittedBy: actor.userId!,
       credentialType: s.credentialType,
       registrationNumber: s.registrationNumber,

@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { currentUser } from "@/lib/session";
-import { beginEnrollment, confirmEnrollment, pendingSecret, setSessionStage } from "@/lib/mfa";
+import { sessions } from "@/db/schema";
+import { clientIp, currentUser, upgradeSession } from "@/lib/session";
+import { beginEnrollment, confirmEnrollment, mfaEnabled, pendingSecret } from "@/lib/mfa";
 import { otpauthUri } from "@/lib/totp";
 import { flashUrl, readFlash } from "@/lib/flash";
 import { BRAND } from "@/lib/brand";
@@ -14,9 +16,9 @@ async function confirm(formData: FormData) {
   "use server";
   const user = await currentUser();
   if (!user || user.stage !== "enroll") redirect("/login");
-  const ok = await confirmEnrollment(getDb(), user.id, String(formData.get("code") ?? ""));
+  const ok = await confirmEnrollment(getDb(), user.id, user.sessionId, String(formData.get("code") ?? ""), { ip: await clientIp() });
   if (!ok) redirect(flashUrl("/account/mfa-setup", "error", "That code did not match. Check your device clock and try the current code."));
-  await setSessionStage(getDb(), user.sessionId, "full");
+  await upgradeSession(user);
   redirect(flashUrl("/admin", "notice", "Two-factor authentication is on."));
 }
 
@@ -25,7 +27,12 @@ export default async function MfaSetup({ searchParams }: { searchParams: Promise
   if (!user) redirect("/login");
   if (user.stage !== "enroll") redirect(user.stage === "mfa" ? "/login/mfa" : "/admin");
   const db = getDb();
-  const secret = (await pendingSecret(db, user.id)) ?? (await beginEnrollment(db, user.id));
+  // Set up meanwhile from another session: this one must pass a normal check instead (review2 L5).
+  if (await mfaEnabled(db, user.id)) {
+    await db.delete(sessions).where(eq(sessions.id, user.sessionId));
+    redirect(flashUrl("/login", "notice", "Two-factor authentication is already on for this account. Sign in again."));
+  }
+  const secret = (await pendingSecret(db, user.id, user.sessionId)) ?? (await beginEnrollment(db, user.id, user.sessionId));
   const uri = otpauthUri(BRAND.name, user.email, secret);
   const svg = await QRCode.toString(uri, { type: "svg", margin: 1, width: 200 });
   const error = readFlash((await searchParams).error);

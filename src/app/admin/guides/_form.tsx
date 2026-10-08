@@ -1,5 +1,5 @@
 import { articles } from "@/db/schema";
-import { sourcesToText } from "@/lib/articles";
+import { OFFICIAL_HOSTS, sourcesToText } from "@/lib/articles";
 
 export const CATEGORIES = [
   ["registrations", "Registrations and roles"],
@@ -18,9 +18,6 @@ export function readArticleForm(fd: FormData) {
     category: v("category"),
     bodyMarkdown: v("bodyMarkdown"),
     sourcesText: v("sourcesText"),
-    reviewerName: v("reviewerName"),
-    reviewerCredential: v("reviewerCredential"),
-    reviewedAt: v("reviewedAt"),
   };
 }
 
@@ -35,16 +32,7 @@ export function ArticleFields({ a }: { a?: typeof articles.$inferSelect }) {
       <div className="field"><label htmlFor="summary">Summary</label><textarea id="summary" name="summary" defaultValue={a?.summary} required maxLength={300} /><div className="help">1–2 sentences that answer the question directly (shown first and used for search snippets).</div></div>
       <div className="field"><label htmlFor="bodyMarkdown">Body (Markdown)</label><textarea id="bodyMarkdown" name="bodyMarkdown" defaultValue={a?.bodyMarkdown} rows={18} style={{ fontFamily: "ui-monospace, monospace" }} /><div className="help">Headings (##), lists, **bold** and [links](https://…). Every rule, number or date must be backed by a source below. Written by a person, not generated.</div></div>
       <div className="field"><label htmlFor="sourcesText">Sources</label><textarea id="sourcesText" name="sourcesText" defaultValue={a ? sourcesToText(a.sources) : ""} rows={5} style={{ fontFamily: "ui-monospace, monospace" }} />
-        <div className="help">One per line: <code>tier | YYYY-MM-DD | title | https://url</code>. Tier 1 = official (FTA, Ministry of Finance, UAE legislation). At least one Tier 1 source is needed to publish.</div></div>
-      <fieldset>
-        <legend>Professional review</legend>
-        <div className="grid grid-3">
-          <div className="field"><label htmlFor="reviewerName">Reviewer name</label><input id="reviewerName" name="reviewerName" defaultValue={a?.reviewerName ?? ""} /></div>
-          <div className="field"><label htmlFor="reviewerCredential">Reviewer credential</label><input id="reviewerCredential" name="reviewerCredential" defaultValue={a?.reviewerCredential ?? ""} placeholder="e.g. FTA-listed tax agent" /></div>
-          <div className="field"><label htmlFor="reviewedAt">Review date</label><input id="reviewedAt" name="reviewedAt" type="date" defaultValue={a?.reviewedAt?.toISOString().slice(0, 10) ?? ""} /></div>
-        </div>
-        <p className="small muted" style={{ margin: 0 }}>Enter these only after the named professional has reviewed this exact text.</p>
-      </fieldset>
+        <div className="help">One per line: <code>tier | YYYY-MM-DD | title | https://url</code>. Tier 1 = an official https page on {OFFICIAL_HOSTS.join(", ")}. At least one Tier 1 source is needed to publish.</div></div>
     </>
   );
 }

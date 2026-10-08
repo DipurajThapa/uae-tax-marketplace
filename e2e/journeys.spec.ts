@@ -225,11 +225,17 @@ test("ENG-09: an admin writes, gates and publishes a guide; reviewers cannot pub
   await expect(page.getByText("At least one official (Tier 1) source is required")).toBeVisible();
   await expect(page.getByRole("button", { name: "Publish" })).toBeDisabled();
 
-  await page.getByLabel("Sources").fill("1 | 2026-10-01 | Federal Tax Authority | https://tax.gov.ae");
+  const today = new Date().toISOString().slice(0, 10);
+  await page.getByLabel("Sources").fill(`1 | ${today} | Federal Tax Authority | https://tax.gov.ae`);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved. A published guide goes back to draft when edited.")).toBeVisible();
+  await expect(page.getByText("A named reviewer with credential and review date is required")).toBeVisible();
+  // review2 M3: the review is recorded separately and covers the saved text.
   await page.getByLabel("Reviewer name").fill("E2E Reviewer");
   await page.getByLabel("Reviewer credential").fill("FTA-listed tax agent");
-  await page.getByLabel("Review date").fill("2026-10-01");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByLabel("Review date").fill(today);
+  await page.getByRole("button", { name: "Record review of this text" }).click();
+  await expect(page.getByText("Review recorded for the current text")).toBeVisible();
   await expect(page.getByText("All checks pass.")).toBeVisible();
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
@@ -275,6 +281,12 @@ test("ENG-15: nonce-based CSP, no script unsafe-inline, no violations while page
   expect(scriptSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
   expect(scriptSrc).not.toContain("unsafe-inline");
   expect(a).not.toBe(b); // fresh nonce per request
+  // review2 M6: prefetches and look-alikes of excluded paths carry the policy too.
+  const csp = async (path: string, headers: Record<string, string> = {}) => (await request.get(path, { headers })).headers()["content-security-policy"] ?? "";
+  expect(await csp("/providers", { "next-router-prefetch": "1", rsc: "1" })).toContain("script-src");
+  expect(await csp("/providers", { purpose: "prefetch" })).toContain("script-src");
+  expect(await csp("/api/health-x")).toContain("script-src");
+  expect(await csp("/favicon.ico.html")).toContain("script-src");
 
   const violations: string[] = [];
   page.on("console", (m) => { if (/Content Security Policy|Refused to (execute|load)/i.test(m.text())) violations.push(m.text()); });

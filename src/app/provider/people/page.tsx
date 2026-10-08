@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { professionals, credentials, credentialSubmissions } from "@/db/schema";
 import { requireProvider } from "@/lib/session";
@@ -82,7 +82,7 @@ export default async function People({ searchParams }: { searchParams: Promise<{
   const user = await requireProvider();
   const { notice, error } = await searchParams;
   const db = getDb();
-  const people = await db.select().from(professionals).where(eq(professionals.organizationId, user.organizationId)).orderBy(professionals.fullName);
+  const people = await db.select().from(professionals).where(and(eq(professionals.organizationId, user.organizationId), isNull(professionals.removedAt))).orderBy(professionals.fullName);
   const ids = people.map((p) => p.id);
   const creds = ids.length ? withEffectiveStatus(await db.select().from(credentials).where(inArray(credentials.professionalId, ids)), new Date()) : [];
   const subs = ids.length
@@ -121,7 +121,7 @@ export default async function People({ searchParams }: { searchParams: Promise<{
             </form>
             <form action={remove} style={{ marginTop: 12 }}>
               <input type="hidden" name="professionalId" value={p.id} />
-              <label className="option"><input type="checkbox" name="confirm" value="yes" /> Remove {p.fullName} and their registrations</label>
+              <label className="option"><input type="checkbox" name="confirm" value="yes" /> Remove {p.fullName} from your listing</label>
               <button className="btn btn-danger btn-sm" type="submit" style={{ marginTop: 8 }}>Remove</button>
             </form>
           </details>

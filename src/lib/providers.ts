@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, ilike, or, lte, gt, asc, isNotNull, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql, ilike, or, lte, gt, asc, isNotNull, isNull, type SQL } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import {
   organizations,
@@ -131,7 +131,7 @@ async function getProviderDetail(db: DB, org: typeof organizations.$inferSelect,
     db.select().from(organizationJurisdictions).where(eq(organizationJurisdictions.organizationId, org.id)),
     db.select().from(organizationIndustries).where(eq(organizationIndustries.organizationId, org.id)),
     db.select().from(credentials).where(eq(credentials.organizationId, org.id)),
-    db.select().from(professionals).where(eq(professionals.organizationId, org.id)),
+    db.select().from(professionals).where(and(eq(professionals.organizationId, org.id), isNull(professionals.removedAt))),
   ]);
   const peopleIds = people.map((p) => p.id);
   const personCreds = peopleIds.length
@@ -164,7 +164,7 @@ export async function loadCandidates(db: DB, serviceCodes: string[], now: Date):
     db.select().from(organizationJurisdictions).where(inArray(organizationJurisdictions.organizationId, idsQ)),
     db.select().from(organizationIndustries).where(inArray(organizationIndustries.organizationId, idsQ)),
     db.select().from(credentials).where(inArray(credentials.organizationId, idsQ)),
-    db.select({ id: professionals.id, org: professionals.organizationId }).from(professionals).where(inArray(professionals.organizationId, idsQ)),
+    db.select({ id: professionals.id, org: professionals.organizationId }).from(professionals).where(and(inArray(professionals.organizationId, idsQ), isNull(professionals.removedAt))),
   ]);
   if (orgs.length === 0) return [];
   const ids = orgs.map((o) => o.id);
@@ -174,7 +174,7 @@ export async function loadCandidates(db: DB, serviceCodes: string[], now: Date):
     ? await db
         .select()
         .from(credentials)
-        .where(inArray(credentials.professionalId, db.select({ id: professionals.id }).from(professionals).where(inArray(professionals.organizationId, idsQ))))
+        .where(inArray(credentials.professionalId, db.select({ id: professionals.id }).from(professionals).where(and(inArray(professionals.organizationId, idsQ), isNull(professionals.removedAt)))))
     : [];
   const activeUsers = await db
     .select({ org: users.organizationId })

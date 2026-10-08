@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { currentUser } from "@/lib/session";
-import { verifyMfa, setSessionStage } from "@/lib/mfa";
+import { clientIp, currentUser, upgradeSession } from "@/lib/session";
+import { verifyMfa } from "@/lib/mfa";
 import { flashUrl, readFlash } from "@/lib/flash";
 import { Field } from "@/components/ui";
 
@@ -11,9 +11,9 @@ async function check(formData: FormData) {
   "use server";
   const user = await currentUser();
   if (!user || user.stage !== "mfa") redirect("/login");
-  const ok = await verifyMfa(getDb(), user.id, String(formData.get("code") ?? ""));
+  const ok = await verifyMfa(getDb(), user.id, String(formData.get("code") ?? ""), { ip: await clientIp() });
   if (!ok) redirect(flashUrl("/login/mfa", "error", "That code did not work. Use the current code from your authenticator app."));
-  await setSessionStage(getDb(), user.sessionId, "full");
+  await upgradeSession(user);
   redirect("/admin");
 }
 

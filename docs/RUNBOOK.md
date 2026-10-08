@@ -39,7 +39,7 @@ See README quick start. Databases: `marketplace_dev` (app), `marketplace_test` (
 - **Incident: wrong credential shown.** Revoke it in `/admin/providers/[id]` (badge disappears immediately), then log it in RISKS_AND_LEARNINGS.
 
 ## Staff two-factor authentication
-Admins and reviewers must use an authenticator app (TOTP). Lost device: another admin resets it (`resetMfa`), or an operator runs `npx tsx scripts/reset-mfa.ts <email>` (audited); the user enrols again at next sign-in.
+Admins and reviewers must use an authenticator app (TOTP). Lost device: another admin confirms the request by phone and resets it at `/admin/staff`, or an operator runs `npx tsx scripts/reset-mfa.ts <email>` (audited); the user enrols again at next sign-in.
 
 ## Support
 Provider can't log in → issue a new set-password link (re-approve flow; TASK_BACKLOG OPS-05 tracks a self-service reset). Buyer lost the manage link → admin erases on request after confirming the email address.

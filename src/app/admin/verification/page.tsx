@@ -2,7 +2,7 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { credentialSubmissions, credentials, organizations, users, professionals } from "@/db/schema";
-import { approveSubmission, rejectSubmission, credentialsDueSoon, sweepStaleCredentials } from "@/lib/verification";
+import { approveSubmission, rejectSubmission, credentialsDueSoon, sweepStaleCredentials, duplicateRegistrations } from "@/lib/verification";
 import { userActor } from "@/lib/audit";
 import { CREDENTIAL_BY_CODE } from "@/lib/taxonomy";
 import { requireStaff, attempt, done, fail, text, oneOf, dateField, uuidField, fmtDate, fmtDateTime, FlashMessages, type Flash } from "../_shared";
@@ -72,6 +72,9 @@ export default async function AdminVerification({ searchParams }: { searchParams
       .where(eq(credentials.status, "expired"))
       .orderBy(credentials.updatedAt),
   ]);
+  const duplicates = new Map(
+    await Promise.all(pending.map(async ({ s }) => [s.id, await duplicateRegistrations(db, s.credentialType, s.registrationNumber, s.id)] as const)),
+  );
 
   return (
     <div className="stack">
@@ -84,7 +87,7 @@ export default async function AdminVerification({ searchParams }: { searchParams
         {pending.map(({ s, org, person, submitter }) => (
           <article key={s.id} className="card" aria-labelledby={`sub-${s.id}`} style={{ marginBottom: 16 }}>
             <h3 id={`sub-${s.id}`}>
-              {credName(s.credentialType)} · {person?.fullName ? <>{person.fullName} at </> : null}<Link href={`/admin/providers/${org.id}`}>{org.tradeName ?? org.legalName}</Link>
+              {credName(s.credentialType)} · {s.professionalName ?? person?.fullName ? <>{s.professionalName ?? person?.fullName} at </> : null}<Link href={`/admin/providers/${org.id}`}>{org.tradeName ?? org.legalName}</Link>
             </h3>
             <dl className="dl small">
               <dt>Registration no.</dt><dd>{s.registrationNumber}</dd>
@@ -92,6 +95,20 @@ export default async function AdminVerification({ searchParams }: { searchParams
               <dt>Submitted</dt><dd>{fmtDateTime(s.createdAt)} by {submitter.name} ({submitter.email})</dd>
               <dt>Provider note</dt><dd style={{ whiteSpace: "pre-wrap" }}>{s.evidenceNote}</dd>
             </dl>
+            {person && s.professionalName && person.fullName !== s.professionalName && (
+              <p className="alert alert-warn small">The firm renamed this person to {person.fullName} after submitting. Reject it and ask for a new submission.</p>
+            )}
+            {(duplicates.get(s.id) ?? []).length > 0 && (
+              <div className="alert alert-warn small" role="note">
+                <strong>The same registration number is already on file:</strong>
+                <ul>
+                  {duplicates.get(s.id)!.map((d) => (
+                    <li key={d.id}>{d.person ? `${d.person} at ` : ""}{d.org ?? "unknown firm"} ({d.status})</li>
+                  ))}
+                </ul>
+                Check that this person or firm really holds it before approving.
+              </div>
+            )}
             {submitter.id === user.id && <p className="alert alert-warn small">You submitted this yourself, so another reviewer must approve it.</p>}
             <div className="grid grid-2" style={{ marginTop: 12 }}>
               <form action={approve} aria-label={`Approve submission ${s.registrationNumber}`}>

@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { getDb, closeDb } from "@/db/client";
 import * as s from "@/db/schema";
 import { addProfessional, updateProfessional, removeProfessional, submitIndividualCredential } from "@/lib/people";
-import { approveSubmission } from "@/lib/verification";
+import { approveSubmission, openDispute, freezeForDispute, duplicateRegistrations, verifyCredential } from "@/lib/verification";
+import { expectDbError } from "./helpers";
 import { loadCandidates, getProviderBySlug } from "@/lib/providers";
 import { matchProviders } from "@/lib/matching";
 import { userActor } from "@/lib/audit";
@@ -74,5 +75,106 @@ describe("ENG-07 individual professionals", () => {
     const { org, user } = await makeOrg();
     const r = await addProfessional(db, userActor(user!.id), org.id, { fullName: "Sam Lee", bio: "FTA-approved expert, guaranteed outcomes" });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("review2 fixes for people", () => {
+  const person = async (orgId: string, userId: string, fullName: string) => {
+    const r = await addProfessional(db, userActor(userId), orgId, { fullName });
+    if (!r.ok || !r.id) throw new Error("setup");
+    return r.id;
+  };
+  const submit = (orgId: string, userId: string, professionalId: string, registrationNumber = "TAAN-1") =>
+    submitIndividualCredential(db, userActor(userId), orgId, { professionalId, credentialType: "FTA_TAX_AGENT", registrationNumber, evidenceNote: "Search FTA register by TAAN" });
+
+  it("H1: a demo firm's people are demo records and can never be verified", async () => {
+    const { org, user } = await makeOrg({ isSynthetic: true });
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const id = await person(org.id, user!.id, "Demo Person");
+    const [row] = await db.select().from(s.professionals).where(eq(s.professionals.id, id));
+    expect(row!.isSynthetic).toBe(true);
+    await submit(org.id, user!.id, id);
+    const [sub] = await db.select().from(s.credentialSubmissions);
+    await expectDbError(approveSubmission(db, userActor(reviewer.id), sub!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now), /synthetic/);
+    // The trigger checks the firm too, even if the person's own flag were wrong.
+    await db.update(s.professionals).set({ isSynthetic: false }).where(eq(s.professionals.id, id));
+    const [cred] = await db.select().from(s.credentials).where(eq(s.credentials.professionalId, id));
+    await expectDbError(verifyCredential(db, userActor(reviewer.id), cred!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now), /synthetic/);
+  });
+
+  it("M4: no rename while a registration is pending, and approval refuses a changed name", async () => {
+    const { org, user } = await makeOrg();
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const id = await person(org.id, user!.id, "Aisha Rahman");
+    await submit(org.id, user!.id, id);
+    expect((await updateProfessional(db, userActor(user!.id), org.id, id, { fullName: "Someone Else" })).ok).toBe(false);
+    const [sub] = await db.select().from(s.credentialSubmissions);
+    expect(sub!.professionalName).toBe("Aisha Rahman");
+    // Even if the name changed by another route, approval refuses.
+    await db.update(s.professionals).set({ fullName: "Someone Else" }).where(eq(s.professionals.id, id));
+    await expect(approveSubmission(db, userActor(reviewer.id), sub!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now)).rejects.toThrow(/name changed/);
+  });
+
+  it("M5: removing a person keeps the record, hides it, and blocks approval", async () => {
+    const { org, user } = await makeOrg({ services: ["fta-representation"] });
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const id = await person(org.id, user!.id, "Omar Said");
+    await submit(org.id, user!.id, id);
+    const [sub] = await db.select().from(s.credentialSubmissions);
+    await removeProfessional(db, userActor(user!.id), org.id, id, now);
+    const [row] = await db.select().from(s.professionals).where(eq(s.professionals.id, id));
+    expect(row!.removedAt).not.toBeNull();
+    expect((await getProviderBySlug(db, org.slug))!.people).toHaveLength(0);
+    await expect(approveSubmission(db, userActor(reviewer.id), sub!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now)).rejects.toThrow(/removed/);
+    await expect(removeProfessional(db, userActor(user!.id), org.id, id, now)).rejects.toThrow(/not found/);
+  });
+
+  it("M5: a verified person stops counting for the firm once removed", async () => {
+    const { org, user } = await makeOrg({ services: ["fta-representation"] });
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const id = await person(org.id, user!.id, "Lina Haddad");
+    await submit(org.id, user!.id, id);
+    const [sub] = await db.select().from(s.credentialSubmissions);
+    await approveSubmission(db, userActor(reviewer.id), sub!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now);
+    expect(matchProviders(await loadCandidates(db, ["fta-representation"], now), assessment).matches).toHaveLength(1);
+    await removeProfessional(db, userActor(user!.id), org.id, id, now);
+    expect(matchProviders(await loadCandidates(db, ["fta-representation"], now), assessment).matches).toHaveLength(0);
+  });
+
+  it("M5: an individual's registration can be reported and frozen", async () => {
+    const { org, user } = await makeOrg();
+    const other = await makeOrg();
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const id = await person(org.id, user!.id, "Sara Ali");
+    await submit(org.id, user!.id, id);
+    const [sub] = await db.select().from(s.credentialSubmissions);
+    await approveSubmission(db, userActor(reviewer.id), sub!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now);
+    const [cred] = await db.select().from(s.credentials).where(eq(s.credentials.professionalId, id));
+    const input = { organizationId: org.id, credentialId: cred!.id, reporterEmail: "r@example.invalid", reason: "incorrect_credential" as const, details: "This person left the firm last year." };
+    // The credential belongs to org's person, not to another firm.
+    await expect(openDispute(db, { ...input, organizationId: other.org.id }, { ip: "203.0.113.9", now })).rejects.toThrow(/does not belong/);
+    const d = await openDispute(db, input, { ip: "203.0.113.9", now });
+    if (!d.ok) throw new Error("dispute");
+    await freezeForDispute(db, userActor(reviewer.id), d.id, now);
+    const [after] = await db.select().from(s.credentials).where(eq(s.credentials.id, cred!.id));
+    expect(after!.status).toBe("disputed");
+  });
+
+  it("M5: the reviewer sees the same registration number held elsewhere", async () => {
+    const a = await makeOrg();
+    const b = await makeOrg();
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const pa = await person(a.org.id, a.user!.id, "First Holder");
+    await submit(a.org.id, a.user!.id, pa, "TAAN-777");
+    const [subA] = await db.select().from(s.credentialSubmissions);
+    await approveSubmission(db, userActor(reviewer.id), subA!.id, { method: "official_register", evidenceNote: "Looked it up on the register" }, now);
+    const pb = await person(b.org.id, b.user!.id, "Second Claimant");
+    await submit(b.org.id, b.user!.id, pb, "taan 777");
+    const [subB] = await db.select().from(s.credentialSubmissions).where(eq(s.credentialSubmissions.professionalId, pb));
+    const dups = await duplicateRegistrations(db, "FTA_TAX_AGENT", subB!.registrationNumber, subB!.id);
+    expect(dups.map((d) => d.person)).toEqual(["First Holder"]);
+    expect(await duplicateRegistrations(db, "FTA_TAX_AGENT", subA!.registrationNumber, subA!.id)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ person: "Second Claimant", status: "pending" })]),
+    );
   });
 });

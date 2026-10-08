@@ -62,6 +62,11 @@ export default async function Report({ params, searchParams }: { params: Promise
           <select id="credentialId" name="credentialId">
             <option value="">Not about a registration</option>
             {p.credentials.map((c) => <option key={c.id} value={c.id}>{CREDENTIAL_BY_CODE[c.credentialType]?.name ?? c.credentialType}</option>)}
+            {p.people.flatMap((person) =>
+              person.credentials.map((c) => (
+                <option key={c.id} value={c.id}>{CREDENTIAL_BY_CODE[c.credentialType]?.name ?? c.credentialType} ({person.fullName})</option>
+              )),
+            )}
           </select>
         </Field>
         <Field label="Details" name="details"><textarea id="details" name="details" required minLength={10} maxLength={2000} /></Field>
