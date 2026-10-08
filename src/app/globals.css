@@ -140,8 +140,14 @@ th { background: var(--bg); font-weight: 600; color: var(--ink-2); white-space: 
 tr:last-child td { border-bottom: none; }
 
 /* Steps */
-.steps { display: flex; gap: 8px; list-style: none; padding: 0; margin: 0 0 24px; flex-wrap: wrap; }
-.steps li { flex: 1; min-width: 120px; padding: 8px 10px; border-top: 4px solid var(--line); color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+/* One row at every width: labels truncate, and in a narrow column only the current step keeps its visible label. */
+.steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 0 0 24px; flex-wrap: nowrap; container-type: inline-size; }
+.steps li { flex: 1 1 0; min-width: 0; padding: 8px 8px; border-top: 4px solid var(--line); color: var(--muted); font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 560px) {
+  .steps li:not([aria-current="step"]) { flex: 0 0 2.6em; text-overflow: clip; }
+  .steps li:not([aria-current="step"]) .step-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .steps li[aria-current="step"] { flex: 1 1 auto; }
+}
 .steps li[aria-current="step"] { border-color: var(--brand); color: var(--ink); }
 .steps li.done { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
 .score { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--brand); }
