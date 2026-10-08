@@ -1,7 +1,4 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { SectionNav } from "@/components/section-nav";
 
 const ITEMS = [
   { href: "/provider", label: "Overview" },
@@ -15,17 +12,5 @@ const ITEMS = [
 ];
 
 export function ProviderNav() {
-  const path = usePathname();
-  return (
-    <nav className="admin-nav" aria-label="Provider dashboard">
-      {ITEMS.map((i) => {
-        const current = i.href === "/provider" ? path === "/provider" : path === i.href || path.startsWith(`${i.href}/`);
-        return (
-          <Link key={i.href} href={i.href} aria-current={current ? "page" : undefined} style={current ? { background: "var(--brand-soft)", color: "var(--ink)" } : undefined}>
-            {i.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  return <SectionNav items={ITEMS} label="Provider dashboard" root="/provider" />;
 }

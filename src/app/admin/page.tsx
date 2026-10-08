@@ -123,7 +123,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
             <tbody>
               {FUNNEL.map((f) => (
                 <tr key={f.name}>
-                  <th scope="row" style={{ background: "transparent", fontWeight: 500 }}>{f.label} <span className="muted small">({f.name})</span></th>
+                  <th scope="row">{f.label} <span className="muted small">({f.name})</span></th>
                   <td>{n(f.name)}</td>
                   <td>{f.base ? FUNNEL.find((x) => x.name === f.base)?.label : "—"}</td>
                   <td>{f.base ? pct(n(f.name), n(f.base)) : "—"}</td>

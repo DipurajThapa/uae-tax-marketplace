@@ -6,6 +6,7 @@ import { BRAND } from "@/lib/brand";
 import { JsonLd } from "@/components/ui";
 import { config } from "@/lib/config";
 import { RadarScene, RoleIcon, StepIcon } from "@/components/illustrations";
+import { MoneyRules } from "@/components/money";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function Home() {
       <section className="hero">
         <div className="container hero-grid">
           <div className="hero-copy">
+          <p className="kicker">Corporate Tax · VAT · E-invoicing</p>
           <h1>Find UAE tax and e-invoicing professionals whose registrations <span className="hl-mark">you can check</span></h1>
           <p className="lead">Compare Corporate Tax, VAT and e-invoicing providers by service, location and language. See which registrations we have checked, and how. Then send one enquiry to up to three providers you choose.</p>
           <form action="/providers" method="get" className="row" role="search" style={{ marginTop: 20, maxWidth: 720 }}>
@@ -40,8 +42,14 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      <div className="ticker" aria-hidden="true">
+        <div className="ticker-track">
+          {[0, 1].map((copy) => SERVICES.slice(0, 8).map((s) => <span key={`${copy}-${s.code}`}>{s.name} ✦</span>))}
+        </div>
+      </div>
 
-      <section className="container" style={{ marginTop: 40 }}>
+      <section className="container mt-4">
+        <p className="kicker">Explore</p>
         <h2>Browse by service</h2>
         <div className="grid grid-3">
           {categories.map(([cat, label]) => (
@@ -59,8 +67,9 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="container" style={{ marginTop: 40 }}>
-        <h2>How it works</h2>
+      <section className="container mt-4">
+        <p className="kicker">How it works</p>
+        <h2>Two minutes. Three steps. Your choice.</h2>
         <ol className="grid grid-3" style={{ listStyle: "none", padding: 0 }}>
           <li className="card lift"><StepIcon step={1} /><h3>1. Describe what you need</h3><p className="muted">Choose services and answer a few questions about your business. Ranges are enough.</p></li>
           <li className="card lift"><StepIcon step={2} /><h3>2. Compare matching providers</h3><p className="muted">Each match shows why it matched and which registrations we have checked. Paid placements are labelled and never change match scores.</p></li>
@@ -68,7 +77,13 @@ export default async function Home() {
         </ol>
       </section>
 
-      <section className="container" style={{ marginTop: 40 }}>
+      <section className="container mt-4" aria-labelledby="money-h">
+        <p className="kicker">Open about money</p>
+        <h2 id="money-h">How Taxdar makes money</h2>
+        <MoneyRules />
+      </section>
+
+      <section className="container mt-4">
         <div className="grid grid-2">
           <div className="card">
             <h2>Registrations we check</h2>
@@ -88,7 +103,7 @@ export default async function Home() {
             </div>
             <h2 style={{ marginTop: 24 }}>Are you a provider?</h2>
             <p>List your firm for free and receive enquiries from businesses that choose you.</p>
-            <Link className="btn btn-secondary" href="/for-providers">List your firm</Link>
+            <Link className="btn btn-accent" href="/for-providers">List your firm</Link>
           </div>
         </div>
       </section>

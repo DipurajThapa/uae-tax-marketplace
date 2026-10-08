@@ -42,7 +42,7 @@ export default async function MfaSetup({ searchParams }: { searchParams: Promise
       <p>Staff accounts need a second factor. Scan this code with an authenticator app (for example Google Authenticator, Microsoft Authenticator or 1Password), then enter the 6-digit code it shows.</p>
       {error && <div className="alert alert-bad" role="alert">{error}</div>}
       <div className="card stack">
-        <div role="img" aria-label="QR code for your authenticator app" style={{ width: 200, background: "#fff", padding: 8, borderRadius: 8 }} dangerouslySetInnerHTML={{ __html: svg }} />
+        <div role="img" aria-label="QR code for your authenticator app" className="qr-box" dangerouslySetInnerHTML={{ __html: svg }} />
         <p className="small">Can’t scan? Enter this key manually: <code style={{ userSelect: "all", wordBreak: "break-all" }}>{secret}</code></p>
         <form action={confirm}>
           <Field label="Code from your app" name="code">

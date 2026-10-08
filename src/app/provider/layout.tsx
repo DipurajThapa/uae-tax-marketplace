@@ -15,7 +15,7 @@ export default async function ProviderLayout({ children }: { children: React.Rea
     .where(eq(organizations.id, user.organizationId));
   return (
     <div className="container">
-      <p className="muted small" style={{ marginBottom: 8 }}>
+      <p className="mono muted" style={{ margin: "0 0 10px" }}>
         Signed in as {user.name} · {org ? (org.tradeName ?? org.legalName) : "Unknown firm"}
       </p>
       <ProviderNav />

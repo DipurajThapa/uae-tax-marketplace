@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { getProviderBySlug } from "@/lib/providers";
 import { CredentialStatus } from "@/components/ui";
 import { SERVICES, CREDENTIAL_TYPES, LANGUAGE_BY_CODE, EMIRATE_BY_CODE, ORG_KIND_LABELS, JURISDICTION_BY_CODE } from "@/lib/taxonomy";
+import { PageHeader } from "@/components/page";
 
 export const metadata: Metadata = { title: "Compare providers", robots: { index: false, follow: true } };
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
   const without = (slug: string) => `/compare?ids=${ids.filter((x) => x !== slug).join(",")}`;
   return (
     <div className="container">
-      <h1>Compare providers</h1>
+      <PageHeader kicker="Directory" title="Compare providers" lead="Side by side: services, languages, areas served and checked registrations." />
       <form method="get" action="/compare" className="row" style={{ marginBottom: 16 }}>
         <input type="hidden" name="ids" value={ids.join(",")} />
         <label htmlFor="add" className="skip">Provider profile address</label>

@@ -6,6 +6,7 @@ import { SERVICES, EMIRATES, JURISDICTIONS, LANGUAGES, ORG_KIND_LABELS, CREDENTI
 import { ProviderCard, Empty } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { robotsFor } from "@/lib/seo";
+import { PageHeader } from "@/components/page";
 
 type SP = Record<string, string | undefined>;
 
@@ -53,7 +54,7 @@ export default async function ProvidersPage({ searchParams }: { searchParams: Pr
   };
   return (
     <div className="container">
-      <h1>Find a provider</h1>
+      <PageHeader kicker="Directory" title="Find a provider" lead="Filter by service, emirate, language and checked registrations. Sponsored listings are labelled and never change the order of results." />
       <div className="sidebar-layout">
         <form method="get" action="/providers" className="card" aria-label="Filters">
           <div className="field"><label htmlFor="q">Keyword</label><input id="q" name="q" type="search" defaultValue={f.q} /></div>
