@@ -65,8 +65,9 @@ export type CredentialTypeDef = {
 };
 
 export const CREDENTIAL_TYPES: CredentialTypeDef[] = [
-  { code: "FTA_TAX_AGENCY", name: "Registered Tax Agency", issuer: "Federal Tax Authority (UAE)", subject: "organization", regulated: true, recheckDays: 90, description: "The firm appears as a registered tax agency with the Federal Tax Authority." },
-  { code: "FTA_TAX_AGENT", name: "Registered Tax Agent", issuer: "Federal Tax Authority (UAE)", subject: "professional", regulated: true, recheckDays: 90, description: "The individual appears as a registered tax agent with the Federal Tax Authority." },
+  // FTA terminology: firms are listed as "juridical-person tax agents" (older pages say "tax agency").
+  { code: "FTA_TAX_AGENCY", name: "FTA-listed tax agent (firm)", issuer: "Federal Tax Authority (UAE)", subject: "organization", regulated: true, recheckDays: 90, description: "The firm appears in the Federal Tax Authority's register of tax agents." },
+  { code: "FTA_TAX_AGENT", name: "FTA-listed tax agent (individual)", issuer: "Federal Tax Authority (UAE)", subject: "professional", regulated: true, recheckDays: 90, description: "The individual appears in the Federal Tax Authority's register of tax agents." },
   { code: "MOF_EINVOICING_ASP", name: "Accredited E-invoicing Service Provider", issuer: "Ministry of Finance (UAE)", subject: "organization", regulated: true, recheckDays: 90, description: "The firm appears on the Ministry of Finance list of accredited e-invoicing service providers." },
   { code: "ACCA", name: "ACCA member", issuer: "Association of Chartered Certified Accountants", subject: "professional", regulated: false, recheckDays: 365, description: "Professional accountancy membership." },
   { code: "ICAEW_ACA", name: "ICAEW Chartered Accountant (ACA)", issuer: "ICAEW", subject: "professional", regulated: false, recheckDays: 365, description: "Professional accountancy membership." },

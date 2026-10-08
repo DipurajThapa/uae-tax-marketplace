@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb, closeDb } from "@/db/client";
 import * as s from "@/db/schema";
 import { userActor } from "@/lib/audit";
-import { submitClaim, approveClaim, rejectClaim, registerProvider, consumePasswordToken } from "@/lib/claims";
+import { submitClaim, approveClaim, rejectClaim, registerProvider, consumePasswordToken, requestPasswordReset } from "@/lib/claims";
 import { verifyCredential, sweepStaleCredentials, openDispute, resolveDispute, approveSubmission, revokeCredential } from "@/lib/verification";
 import { createPromotion } from "@/lib/promotions";
 import { testBillingProvider } from "@/lib/billing";
@@ -79,6 +79,21 @@ describe("scenario 4/5: claim a listing, admin approves", () => {
     const { org: claimed } = await makeOrg();
     const r = await submitClaim(db, { organizationId: claimed.id, claimantName: "Eve", claimantEmail: "eve@x.example", claimantRole: "Owner", evidenceNote: "trying to hijack a listing here" }, ctx());
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("password reset", () => {
+  it("sends a 1-hour single-use link to existing accounts only, with no enumeration signal", async () => {
+    const u = await makeUser("provider", "pat@firm.example");
+    await requestPasswordReset(db, "nobody@firm.example", ctx());
+    expect(await db.select().from(s.notifications)).toHaveLength(0);
+    await requestPasswordReset(db, "PAT@firm.example", ctx());
+    const [n] = await db.select().from(s.notifications);
+    expect(n!.template).toBe("password_reset");
+    const token = (n!.payload as { setPasswordToken: string }).setPasswordToken;
+    expect((await consumePasswordToken(db, token, "brand-new-password", new Date(now.getTime() + 2 * 3600_000))).ok).toBe(false); // expired
+    const [t] = await db.select().from(s.passwordTokens);
+    expect(t!.userId).toBe(u.id);
   });
 });
 

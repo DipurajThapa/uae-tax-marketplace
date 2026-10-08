@@ -55,10 +55,28 @@ export async function submitClaim(db: DB, input: z.input<typeof claimSchema>, ct
   return { ok: true as const, id };
 }
 
-async function issuePasswordToken(tx: Pick<DB, "insert">, userId: string, now: Date): Promise<string> {
+async function issuePasswordToken(tx: Pick<DB, "insert">, userId: string, now: Date, hours = 72): Promise<string> {
   const token = randomToken();
-  await tx.insert(passwordTokens).values({ id: sha256(token), userId, expiresAt: new Date(now.getTime() + 72 * 3600_000) });
+  await tx.insert(passwordTokens).values({ id: sha256(token), userId, expiresAt: new Date(now.getTime() + hours * 3600_000) });
   return token;
+}
+
+/**
+ * Self-service reset. Always returns the same result whether or not the account exists
+ * (no enumeration); rate-limited per IP and per email. Tokens are single-use and last 1 hour.
+ */
+export async function requestPasswordReset(db: DB, emailRaw: string, ctx: { ip: string; now: Date }): Promise<void> {
+  const email = normalizeEmail(emailRaw).slice(0, 200);
+  const byIp = await rateLimit(db, "reset_ip", keyedHash(`ip:${ctx.ip}`), 5, 3600, ctx.now);
+  const byEmail = await rateLimit(db, "reset_email", keyedHash(`email:${email}`), 3, 3600, ctx.now);
+  if (!byIp.allowed || !byEmail.allowed) return;
+  const [u] = await db.select().from(users).where(eq(users.email, email));
+  if (!u || u.disabled) return;
+  await db.transaction(async (tx) => {
+    const token = await issuePasswordToken(tx, u.id, ctx.now, 1);
+    await enqueue(tx, { to: u.email, template: "password_reset", payload: { setPasswordToken: token } });
+    await audit(tx, userActor(u.id), "user.password_reset_requested", "user", u.id);
+  });
 }
 
 export async function approveClaim(db: DB, actor: Actor, claimId: string, note: string, now = new Date()) {

@@ -25,6 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <Field label="Email" name="email"><input id="email" name="email" type="email" autoComplete="email" required /></Field>
         <Field label="Password" name="password"><input id="password" name="password" type="password" autoComplete="current-password" required /></Field>
         <button className="btn" type="submit">Sign in</button>
+        <p className="small" style={{ marginTop: 12, marginBottom: 0 }}><a href="/forgot-password">Forgot your password?</a></p>
       </form>
     </div>
   );
