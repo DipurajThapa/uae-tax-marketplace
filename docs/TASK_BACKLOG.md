@@ -12,7 +12,8 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | LG-04 | Counsel: do subscription/per-lead/sponsored fees create conduct risk for FTA agents (Decision 1/2024)? | Counsel | BLOCKED | Opinion; adjust plans |
 | LG-05 | Counsel: listing non-registered consultants next to registered agents (Tax Procedures law) | Counsel | BLOCKED | Opinion |
 | LG-06 | Privacy notice and terms are DRAFTS (`/privacy`, `/terms`) | Counsel | BLOCKED | Approved text |
-| BIZ-01 | Brand name and domain (working name "TaxPro Directory UAE") | Owner | BLOCKED | Decide; purchase needs approval |
+| LG-07 | Counsel: may the legal trade name and trademark contain "Tax" for a directory/platform licence (activity fit, regulator approval), and does the brand plus descriptor avoid implied FTA/MoF affiliation? (`docs/research/brand-name-options-2026-10.md`) | Counsel | BLOCKED | Written opinion |
+| BIZ-01 | Brand name and domain: **Taxdar** chosen 2026-10-08 (D-022); app rebranded | Owner | IN PROGRESS | Check taxdar.ae / taxdar.com at a registrar; trade-mark search (MoE, WIPO; classes 35, 42); DET trade-name check; native Arabic review; counsel on LG-07; domain purchase needs approval |
 | BIZ-02 | Real prices, caps, refund policy (D-007 placeholders) | Owner | BLOCKED | Validate with 10+ provider interviews |
 | BIZ-03 | Ask the FTA and MoF for permission or a data feed for register data | Owner | BLOCKED | Letter (outreach approval) |
 | BIZ-04 | Real supply: onboard first providers via self-listing (outreach needs approval) | Owner | BLOCKED | Approve outreach plan |
@@ -41,6 +42,10 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-13 | MFA for staff accounts | COMPLETE | RFC 6238 vectors, integration, E2E |
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
 | ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | COMPLETE | E2E "ENG-15": zero CSP violations |
+| ENG-17 | Consent of named professionals before public display (PIA risk 1) | NOT STARTED | person gets a consent email; profile shows them only after consent; withdrawal hides them |
+| ENG-18 | Retention for removed professionals: scrub name, title and bio after 24 months with no open dispute (PIA risk 4) | COMPLETE | integration "ENG-18" |
+| ENG-19 | Provider-set monthly capacity instead of a plan cap (pricing note; paid status must not change eligibility) | BLOCKED (owner confirms D6) | matching uses the provider's capacity; billing charges overage |
+| ENG-20 | Private staging access gate | COMPLETE | unit test + manual check on a production build (401/200/503) |
 
 Items from the adversarial review are added below when it reports (see `EVIDENCE_LOG.md`).
 

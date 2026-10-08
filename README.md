@@ -1,4 +1,4 @@
-# UAE tax & compliance marketplace (working name: TaxPro Directory UAE)
+# Taxdar: UAE tax agent and e-invoicing provider directory
 
 A two-sided marketplace that helps UAE businesses find Corporate Tax, VAT and e-invoicing professionals, check their registrations, and send one consented enquiry to providers they choose.
 
