@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { DB } from "@/db/client";
-import { consents, enquiries, enquiryRecipients, users, organizations, notifications } from "@/db/schema";
+import { consents, enquiries, enquiryRecipients, users, organizations, notifications, leadCharges } from "@/db/schema";
 import { validateAssessment, type Answers, type Assessment } from "./assessment";
 import { matchProviders, MAX_RECIPIENTS, type Match } from "./matching";
 import { loadCandidates } from "./providers";
@@ -220,8 +220,18 @@ export async function eraseEnquiry(db: DB, actor: Actor, enquiryId: string, now 
       : [];
     await tx
       .update(enquiries)
-      .set({ status: "erased", erasedAt: now, contactName: "[erased]", contactEmail: "[erased]", contactPhone: null, companyName: null, message: null, ipHash: null })
+      .set({ status: "erased", erasedAt: now, contactName: "[erased]", contactEmail: "[erased]", contactPhone: null, companyName: null, message: null, ipHash: null, dedupeKey: `erased:${enquiryId}` })
       .where(eq(enquiries.id, enquiryId));
+    await tx.update(consents).set({ ipHash: null }).where(eq(consents.id, enq.consentId));
+    // Provider notes may quote the buyer's details.
+    await tx.update(enquiryRecipients).set({ providerNote: null }).where(eq(enquiryRecipients.enquiryId, enquiryId));
+    // A lead withdrawn before it was invoiced is not billed (review M5).
+    const recipIds = (await tx.select({ id: enquiryRecipients.id }).from(enquiryRecipients).where(eq(enquiryRecipients.enquiryId, enquiryId))).map((r) => r.id);
+    if (recipIds.length)
+      await tx
+        .update(leadCharges)
+        .set({ status: "waived", reason: "Enquiry withdrawn by the buyer" })
+        .where(and(inArray(leadCharges.enquiryRecipientId, recipIds), eq(leadCharges.status, "pending")));
     // The buyer's receipt holds their name, email and manage token: remove it too.
     await tx.delete(notifications).where(and(eq(notifications.template, "buyer_enquiry_receipt"), sql`${notifications.payload}->>'ref' = ${enq.publicRef}`));
     await tx.update(enquiryRecipients).set({ status: "closed" }).where(eq(enquiryRecipients.enquiryId, enquiryId));

@@ -39,7 +39,7 @@ const pipeList = (dict: Record<string, unknown>, what: string) =>
     .string()
     .default("")
     .transform((s) => s.split("|").map((x) => x.trim()).filter(Boolean))
-    .refine((arr) => arr.every((x) => x in dict), { message: `Unknown ${what}` });
+    .refine((arr) => arr.every((x) => Object.hasOwn(dict, x)), { message: `Unknown ${what}` });
 
 export const importRowSchema = z.object({
   legal_name: z.string().trim().min(2).max(200),

@@ -11,14 +11,14 @@ import {
 } from "@/db/schema";
 import { audit, type Actor } from "./audit";
 import { httpUrl } from "./validators";
+import { copyViolations } from "./copy-rules";
 import { effectivePlan } from "./billing";
 import { SERVICE_BY_CODE, JURISDICTION_BY_CODE, INDUSTRY_BY_CODE, LANGUAGE_BY_CODE, CREDENTIAL_BY_CODE } from "./taxonomy";
 
-const codes = (dict: Record<string, unknown>) => z.array(z.string().refine((v) => v in dict, "Unknown value")).max(30);
+const codes = (dict: Record<string, unknown>) => z.array(z.string().refine((v) => Object.hasOwn(dict, v), "Unknown value")).max(30);
 
 /** Fields a provider may change directly. Legal name, kind and credentials need review. */
 export const profileUpdateSchema = z.object({
-  tradeName: z.string().trim().max(200).optional().transform((v) => v || null),
   city: z.string().trim().max(100).optional().transform((v) => v || null),
   address: z.string().trim().max(300).optional().transform((v) => v || null),
   website: httpUrl().optional().or(z.literal("").transform(() => undefined)).transform((v) => v ?? null),
@@ -41,8 +41,14 @@ export async function updateOwnProfile(db: DB, actor: Actor, organizationId: str
   const plan = await effectivePlan(db, organizationId, now);
   if (p.description && p.description.length > plan.features.maxDescriptionChars)
     return { ok: false as const, errors: { description: `Your plan allows up to ${plan.features.maxDescriptionChars} characters` } };
+  // Provider-written text is public: the same rules as our own copy apply (review M1).
+  for (const [field, value] of [["description", p.description], ["address", p.address], ["city", p.city]] as const) {
+    const bad = value ? copyViolations(value) : [];
+    if (bad.length) return { ok: false as const, errors: { [field]: `Please remove wording that implies a guarantee, endorsement or official approval (${bad[0]}).` } };
+  }
   await db.transaction(async (tx) => {
     const { services, jurisdictions, industries, ...fields } = p;
+    const [before] = await tx.select().from(organizations).where(eq(organizations.id, organizationId)).for("update");
     await tx.update(organizations).set({ ...fields, updatedAt: now }).where(eq(organizations.id, organizationId));
     await tx.delete(organizationServices).where(eq(organizationServices.organizationId, organizationId));
     await tx.insert(organizationServices).values(services.map((s) => ({ organizationId, serviceCode: s })));
@@ -50,7 +56,12 @@ export async function updateOwnProfile(db: DB, actor: Actor, organizationId: str
     if (jurisdictions.length) await tx.insert(organizationJurisdictions).values(jurisdictions.map((j) => ({ organizationId, jurisdictionCode: j })));
     await tx.delete(organizationIndustries).where(eq(organizationIndustries.organizationId, organizationId));
     if (industries.length) await tx.insert(organizationIndustries).values(industries.map((i) => ({ organizationId, industryCode: i })));
-    await audit(tx, actor, "organization.profile_updated", "organization", organizationId, { fields: Object.keys(fields) });
+    const changes = Object.fromEntries(
+      Object.entries(fields)
+        .filter(([k, v]) => JSON.stringify((before as Record<string, unknown> | undefined)?.[k] ?? null) !== JSON.stringify(v ?? null))
+        .map(([k, v]) => [k, { from: (before as Record<string, unknown> | undefined)?.[k] ?? null, to: v }]),
+    );
+    await audit(tx, actor, "organization.profile_updated", "organization", organizationId, { changes, services, jurisdictions, industries });
   });
   return { ok: true as const };
 }

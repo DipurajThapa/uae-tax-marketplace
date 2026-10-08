@@ -149,5 +149,5 @@ export const JURISDICTION_BY_CODE = byCode(JURISDICTIONS);
 export const INDUSTRY_BY_CODE = byCode(INDUSTRIES);
 export const LANGUAGE_BY_CODE = byCode(LANGUAGES);
 
-export const isEmirate = (c: string) => c in EMIRATE_BY_CODE;
-export const isService = (c: string) => c in SERVICE_BY_CODE;
+export const isEmirate = (c: string) => Object.hasOwn(EMIRATE_BY_CODE, c);
+export const isService = (c: string) => Object.hasOwn(SERVICE_BY_CODE, c);

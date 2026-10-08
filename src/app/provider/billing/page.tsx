@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { enquiries, enquiryRecipients, leadCharges, plans, subscriptions } from "@/db/schema";
 import { requireProvider } from "@/lib/session";
 import { billing, effectivePlan, leadsThisPeriod, periodMonth } from "@/lib/billing";
-import { userActor } from "@/lib/audit";
+import { audit, userActor } from "@/lib/audit";
 import { Flash, back, chargeLabel, fmtAed, fmtDate } from "../_ui";
 
 export const metadata = { title: "Plan & billing", robots: { index: false } };
@@ -19,16 +19,12 @@ async function switchPlan(formData: FormData) {
   const parsed = planCodeSchema.safeParse(formData.get("plan"));
   if (!parsed.success) back(PATH, "error", "Choose a plan.");
   const db = getDb();
-  let name = parsed.data;
-  try {
-    const [plan] = await db.select().from(plans).where(and(eq(plans.code, parsed.data), eq(plans.active, true)));
-    if (!plan) throw new Error("inactive");
-    name = plan.name;
-    await billing().subscribe(db, userActor(user.id), user.organizationId, plan.code, new Date());
-  } catch {
-    back(PATH, "error", "That plan is not available. No change was made.");
-  }
-  back(PATH, "notice", `You are now on the ${name} plan (test mode: no payment was taken).`);
+  const [plan] = await db.select().from(plans).where(and(eq(plans.code, parsed.data), eq(plans.active, true)));
+  if (!plan) back(PATH, "error", "That plan is not available. No change was made.");
+  // Billing is test-only: a self-service switch would grant paid features for free (review M2).
+  // Record the request; staff apply it from /admin/billing.
+  await audit(db, userActor(user.id), "plan.change_requested", "organization", user.organizationId, { plan: plan!.code });
+  back(PATH, "notice", `Request recorded for the ${plan!.name} plan. Our team will confirm it; billing is not live yet.`);
 }
 
 async function cancelPlan() {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { disputes, organizations, credentials } from "@/db/schema";
-import { resolveDispute } from "@/lib/verification";
+import { resolveDispute, freezeForDispute } from "@/lib/verification";
 import { userActor } from "@/lib/audit";
 import { CREDENTIAL_BY_CODE } from "@/lib/taxonomy";
 import { requireStaff, attempt, done, fail, text, uuidField, fmtDateTime, maskEmail, FlashMessages, StatusBadge, type Flash } from "../_shared";
@@ -29,6 +29,16 @@ async function resolve(outcome: "upheld" | "rejected", formData: FormData) {
   const r = await attempt(() => resolveDispute(getDb(), userActor(user.id), disputeId, outcome, note));
   if (!r.ok) fail(BACK, r.error);
   done(BACK, outcome === "upheld" ? "Dispute upheld" : "Dispute rejected");
+}
+
+async function freeze(formData: FormData) {
+  "use server";
+  const user = await requireStaff();
+  const disputeId = uuidField(formData, "disputeId");
+  if (!disputeId) fail(BACK, "Unknown dispute");
+  const r = await attempt(() => freezeForDispute(getDb(), userActor(user.id), disputeId));
+  if (!r.ok) fail(BACK, r.error);
+  done(BACK, "Badge hidden while the dispute is investigated");
 }
 
 export default async function AdminDisputes({ searchParams }: { searchParams: Promise<Flash> }) {
@@ -79,6 +89,13 @@ export default async function AdminDisputes({ searchParams }: { searchParams: Pr
               <button className="btn btn-secondary" type="submit" formAction={resolve.bind(null, "rejected")}>Reject dispute</button>
             </div>
           </form>
+          {d.credentialId && (
+            <form action={freeze} style={{ marginTop: 8 }}>
+              <input type="hidden" name="disputeId" value={d.id} />
+              <button className="btn btn-secondary btn-sm" type="submit">Hide badge while investigating</button>
+              <span className="small muted"> Reports never hide a badge on their own; use this only if the report looks credible.</span>
+            </form>
+          )}
         </article>
       ))}
 

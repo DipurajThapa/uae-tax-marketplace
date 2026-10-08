@@ -6,18 +6,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const ROOTS = ["src/app", "src/components", "src/lib/notify.ts", "src/lib/consent.ts", "src/lib/taxonomy.ts"];
-const FORBIDDEN: [RegExp, string][] = [
-  [/recommended for you/i, "personalised recommendation"],
-  [/best for you/i, "personalised recommendation"],
-  [/\byou should\b/i, "advice wording"],
-  [/\bguaranteed?\b/i, "guarantee"],
-  [/\bsave (aed|\$|money|up to)/i, "savings promise"],
-  [/\bofficial(ly)? (partner|approved|endorsed)\b/i, "implied endorsement"],
-  [/\b(fta|ministry of finance)[- ](approved|endorsed|certified) (platform|directory|site)\b/i, "implied endorsement"],
-  [/\b\d+(\.\d+)?\s?% (corporate tax|vat)\b/i, "hardcoded tax rate"],
-  [/\b(corporate tax|vat) (rate|threshold) (is|of)\b/i, "hardcoded regulatory statement"],
-  [/\bpenalt(y|ies) of aed\b/i, "hardcoded penalty"],
-];
+const { FORBIDDEN_COPY: FORBIDDEN } = await import("../src/lib/copy-rules");
 const EXT = new Set([".ts", ".tsx"]);
 
 function walk(p: string, out: string[]) {

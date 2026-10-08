@@ -236,6 +236,53 @@ describe("revocation and promotions", () => {
   });
 });
 
+describe("review fixes: medium findings", () => {
+  it("M1: providers cannot rename themselves or publish endorsement claims; audit records old and new values", async () => {
+    const { updateOwnProfile } = await import("@/lib/profile");
+    const { org, user } = await makeOrg({ legalName: "Honest Firm" });
+    const base = { acceptingEnquiries: true, languages: ["en"], services: ["vat-returns"], jurisdictions: [], industries: [] };
+    const bad = await updateOwnProfile(db, userActor(user!.id), org.id, { ...base, description: "FTA-approved and guaranteed results." });
+    expect(bad.ok).toBe(false);
+    const ok = await updateOwnProfile(db, userActor(user!.id), org.id, { ...base, tradeName: "PwC Middle East", description: "Small VAT practice." });
+    expect(ok.ok).toBe(true);
+    const [after] = await db.select().from(s.organizations);
+    expect(after!.tradeName).toBeNull();
+    const [row] = await db.select().from(s.auditLog).where(eq(s.auditLog.action, "organization.profile_updated"));
+    expect(JSON.stringify(row!.details)).toContain("Small VAT practice.");
+  });
+
+  it("M7: a staff email cannot claim a listing; staff cannot verify their own organisation", async () => {
+    const { org } = await makeOrg({ claimState: "unclaimed", withUser: false });
+    const reviewer = await makeUser("reviewer", "rev@example.invalid");
+    const admin = await makeUser("admin", "admin@example.invalid");
+    await submitClaim(db, { organizationId: org.id, claimantName: "Rev", claimantEmail: "rev@example.invalid", claimantRole: "Owner", evidenceNote: "I also own this firm, honestly" }, ctx());
+    const [claim] = await db.select().from(s.claims);
+    await expect(approveClaim(db, userActor(admin.id), claim!.id, "ok", now)).rejects.toThrow(/staff account/);
+
+    const other = await makeOrg();
+    await db.update(s.users).set({ organizationId: other.org.id }).where(eq(s.users.id, reviewer.id));
+    const [c] = await db.insert(s.credentials).values({ credentialType: "FTA_TAX_AGENCY", organizationId: other.org.id }).returning();
+    await expect(verifyCredential(db, userActor(reviewer.id), c!.id, { method: "official_register", evidenceNote: "self-serving check" })).rejects.toThrow(/own organisation/);
+    await expect(verifyCredential(db, userActor(other.user!.id), c!.id, { method: "official_register", evidenceNote: "provider self check" })).rejects.toThrow(/Only staff/);
+  });
+
+  it("M5: retention removes expired sessions and used tokens and scrubs old claims", async () => {
+    const { purgeExpiredPersonalData } = await import("@/lib/retention");
+    const u = await makeUser("provider", "old@firm.example");
+    await db.insert(s.sessions).values({ id: "x", userId: u.id, expiresAt: new Date(now.getTime() - 1000) });
+    await db.insert(s.passwordTokens).values({ id: "t", userId: u.id, expiresAt: new Date(now.getTime() - 1000) });
+    const { org } = await makeOrg({ claimState: "unclaimed", withUser: false });
+    await db.insert(s.claims).values({ organizationId: org.id, claimantName: "Old", claimantEmail: "old@x.example", claimantRole: "r", evidenceNote: "e", emailDomainMatchesWebsite: false, state: "rejected", createdAt: new Date("2023-01-01") });
+    const r = await purgeExpiredPersonalData(db, now);
+    expect(r).toMatchObject({ sessionsDeleted: 1, tokensDeleted: 1, claimsScrubbed: 1 });
+  });
+
+  it("L1: built-in property names are not valid taxonomy codes", async () => {
+    const { validateAssessment } = await import("@/lib/assessment");
+    expect(validateAssessment({ services: ["constructor"], emirate: "toString" }).ok).toBe(false);
+  });
+});
+
 describe("lawful data import", () => {
   const csv = "legal_name,kind,emirate,services,website\nNew Firm LLC,accounting_firm,dubai,bookkeeping|vat-returns,https://newfirm.example\nNew Firm L.L.C.,accounting_firm,dubai,bookkeeping,\nBad Row,unknown_kind,dubai,bookkeeping,\nExisting Copy,accounting_firm,sharjah,bookkeeping,https://firm1.example\n";
 

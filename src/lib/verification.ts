@@ -1,7 +1,7 @@
 import { and, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DB } from "@/db/client";
-import { credentials, credentialTypes, disputes, credentialSubmissions, organizations } from "@/db/schema";
+import { credentials, credentialTypes, disputes, credentialSubmissions, organizations, users } from "@/db/schema";
 import { audit, PUBLIC, SYSTEM, type Actor } from "./audit";
 import { rateLimit } from "./ratelimit";
 import { keyedHash } from "./crypto";
@@ -33,6 +33,9 @@ export async function verifyCredential(db: DB, actor: Actor, credentialId: strin
       .for("update");
     if (!c) throw new Error("Credential not found");
     if (c.c.status === "disputed") throw new Error("Resolve the open dispute first");
+    const [reviewer] = await tx.select({ org: users.organizationId, role: users.role }).from(users).where(eq(users.id, actor.userId!));
+    if (!reviewer || (reviewer.role !== "admin" && reviewer.role !== "reviewer")) throw new Error("Only staff can verify credentials");
+    if (reviewer.org && reviewer.org === c.c.organizationId) throw new Error("Staff cannot verify their own organisation's credentials");
     let recheck = addDays(now, c.recheckDays);
     const expires = v.expiresAt ?? c.c.expiresAt;
     if (expires && expires <= now) throw new Error("Credential has already expired");

@@ -111,8 +111,19 @@ export async function recordLeadCharge(tx: Tx, recipientId: string, organization
 /** Provider disputes a lead (e.g. fake contact). Admin decides; waived charges free up capacity. */
 export async function setChargeStatus(db: DB, actor: Actor, chargeId: string, status: "waived" | "disputed" | "pending" | "invoiced", reason: string) {
   await db.transaction(async (tx) => {
-    const updated = await tx.update(leadCharges).set({ status, reason }).where(eq(leadCharges.id, chargeId)).returning({ id: leadCharges.id });
-    if (updated.length === 0) throw new Error("Charge not found");
+    const [charge] = await tx.select().from(leadCharges).where(eq(leadCharges.id, chargeId)).for("update");
+    if (!charge) throw new Error("Charge not found");
+    if (charge.status === "waived" && status !== "waived") {
+      // Re-activating a waived charge must not push the provider over its plan cap (review M11).
+      await lockOrganizationsForCharging(tx, [charge.organizationId]);
+      const plan = await effectivePlan(tx as unknown as DB, charge.organizationId, new Date());
+      const [row] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(leadCharges)
+        .where(and(eq(leadCharges.organizationId, charge.organizationId), eq(leadCharges.periodMonth, charge.periodMonth), sql`${leadCharges.status} <> 'waived'`));
+      if ((row?.n ?? 0) >= plan.maxLeadsPerMonth) throw new Error("Re-activating this charge would exceed the provider's monthly limit");
+    }
+    await tx.update(leadCharges).set({ status, reason }).where(eq(leadCharges.id, chargeId));
     await audit(tx, actor, `lead_charge.${status}`, "lead_charge", chargeId, { reason });
   });
 }

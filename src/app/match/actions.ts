@@ -53,8 +53,15 @@ export async function findMatchesAction(answers: Answers): Promise<FindResult> {
   return { ok: true, matches: views, noMatchReasons: [] };
 }
 
-export async function consentTextAction(names: string[]): Promise<{ version: string; text: string }> {
-  return { version: ENQUIRY_CONSENT_VERSION, text: enquiryConsentText(names.slice(0, 3).map((n) => n.slice(0, 200))) };
+/** Consent text is built from server-side names for the chosen ids, so it matches what is stored (review L11). */
+export async function consentTextAction(providerIds: string[]): Promise<{ version: string; text: string }> {
+  const db = getDb();
+  const names: string[] = [];
+  for (const id of providerIds.slice(0, 3)) {
+    const p = await getProviderById(db, id);
+    if (p) names.push(p.org.tradeName ?? p.org.legalName);
+  }
+  return { version: ENQUIRY_CONSENT_VERSION, text: enquiryConsentText(names) };
 }
 
 export type SubmitView =

@@ -41,3 +41,17 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
 
 Items from the adversarial review are added below when it reports (see `EVIDENCE_LOG.md`).
+
+## Review follow-ups (adversarial review 2026-10-08)
+| ID | Finding | Status | Acceptance |
+|---|---|---|---|
+| RV-M9 | Self-registered providers are "claimed" without email verification | NOT STARTED | Account email confirmed before any lead routing |
+| RV-M10 | Consent recorded under a draft version; store full text | BLOCKED (LG-03) | Final text version stored verbatim |
+| RV-L2 | Test subscriptions do not renew; periods vs calendar months | NOT STARTED | Renewal job; period-aligned counting |
+| RV-L3 | `?error=`/`?notice=` show arbitrary text (escaped, so no XSS) | NOT STARTED | Messages selected by code |
+| RV-L4 | Logout over GET | NOT STARTED | POST form |
+| RV-L5 | Registration reveals existing accounts and draft slugs | NOT STARTED | Generic message, emailed instructions |
+| RV-L6 | Duplicate check reveals another buyer's reference | NOT STARTED | Duplicate response shows no ref |
+| RV-L8 | No custom error page | NOT STARTED | Branded 500 page |
+| RV-L9 | Migration 0002 adds NOT NULL without a default | NOT STARTED | Safe on non-empty DBs (pre-launch, no data yet) |
+| RV-L10 | `//host` markdown links; CSP `unsafe-inline`; demo badge on compare; sponsored ignore some filters | NOT STARTED | Each fixed or accepted |

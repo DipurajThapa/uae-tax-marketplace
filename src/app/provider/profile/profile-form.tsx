@@ -56,8 +56,8 @@ export function ProfileForm({ initial, maxDescriptionChars }: { initial: Profile
 
       <fieldset>
         <legend>Firm details</legend>
-        <Field label="Trading name (optional)" name="tradeName" error={e.tradeName}>
-          <input id="tradeName" name="tradeName" type="text" maxLength={200} defaultValue={v.tradeName} {...inv("tradeName")} />
+        <Field label="Trading name" name="tradeName" help="Shown publicly and in buyers' consent text. Contact support to change it.">
+          <input id="tradeName" type="text" value={v.tradeName} readOnly aria-readonly="true" />
         </Field>
         <div className="grid grid-2" style={{ gap: 0, columnGap: 16 }}>
           <Field label="City (optional)" name="city" error={e.city}>

@@ -110,9 +110,8 @@ export function MatchWizard({ preselect, initialService }: Props) {
       setErrors({ providers: "Choose at least one provider" });
       return;
     }
-    const names = matches!.filter((m) => selected.includes(m.id)).map((m) => m.name);
     startTransition(async () => {
-      setConsentDoc(await consentTextAction(names));
+      setConsentDoc(await consentTextAction(selected));
       setConsent(false);
       setErrors({});
       setStep("contact");

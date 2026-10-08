@@ -25,7 +25,9 @@ export default function HowRanking() {
       </ul>
       <p>Every match shows the reasons behind its score. Ties are ordered alphabetically.</p>
       <h2>Paid placements</h2>
-      <p>Providers on some paid plans can buy sponsored placements. These are always labelled “Sponsored”, shown apart from the results, and never change who is eligible or any match score. Paying for a plan does not change search order.</p>
+      <p>Providers on some paid plans can buy sponsored placements. These are always labelled “Sponsored”, shown apart from the results, and never change any match score or search order.</p>
+      <h2>Plans and monthly limits</h2>
+      <p>Each provider can receive a limited number of enquiries per month, and the limit depends on its plan: free listings have a lower limit than paid plans. A provider that has reached its limit is left out of matches until the next month. Apart from that limit, a plan never affects who matches or how they are scored.</p>
       <h2>Your choice</h2>
       <p>You choose up to {MAX_RECIPIENTS} providers. Your details go only to them, and only after you agree.</p>
     </div>

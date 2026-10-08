@@ -18,7 +18,7 @@ function parseFilters(sp: SP): SearchFilters {
     emirate: sp.emirate && isEmirate(sp.emirate) ? sp.emirate : undefined,
     jurisdiction: JURISDICTIONS.some((j) => j.code === sp.jurisdiction) ? sp.jurisdiction : undefined,
     language: LANGUAGES.some((l) => l.code === sp.language) ? sp.language : undefined,
-    kind: sp.kind && sp.kind in ORG_KIND_LABELS ? sp.kind : undefined,
+    kind: sp.kind && Object.hasOwn(ORG_KIND_LABELS, sp.kind) ? sp.kind : undefined,
     credential: CREDENTIAL_TYPES.some((c) => c.code === sp.credential) ? sp.credential : undefined,
     verifiedOnly: sp.verified === "1",
     page: Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1),

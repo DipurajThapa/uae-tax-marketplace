@@ -280,6 +280,25 @@ describe("buyer withdrawal, erasure and retention", () => {
     expect(JSON.stringify(left)).not.toContain("jo@buyer.example");
   });
 
+  it("M5/M11: erasure clears provider notes and waives the pending charge; un-waiving cannot exceed the cap", async () => {
+    const a = await makeOrg();
+    const res = await submitEnquiry(db, input([a.org.id]), ctx());
+    if (!res.ok || !res.manageToken) throw new Error("setup");
+    const [rec] = await db.select().from(s.enquiryRecipients);
+    await respondToEnquiry(db, userActor(a.user!.id), a.org.id, rec!.id, "accepted", "Called Jo on +971 50 000 0000");
+    await withdrawEnquiry(db, res.manageToken);
+    const [recAfter] = await db.select().from(s.enquiryRecipients);
+    expect(recAfter!.providerNote).toBeNull();
+    const [charge] = await db.select().from(s.leadCharges);
+    expect(charge!.status).toBe("waived");
+
+    // Fill the free plan, then try to un-waive the earlier charge.
+    for (let i = 0; i < 3; i++) await submitEnquiry(db, input([a.org.id], { contact: { contactName: "Fill Er", contactEmail: `f${i}@x.example` } }), { ip: `10.7.0.${i}`, now });
+    const admin = await makeUser("admin", "admin@example.invalid");
+    const { setChargeStatus } = await import("@/lib/billing");
+    await expect(setChargeStatus(db, userActor(admin.id), charge!.id, "pending", "oops")).rejects.toThrow(/monthly limit/);
+  });
+
   it("retention erases enquiries older than 12 months only", async () => {
     const a = await makeOrg();
     await submitEnquiry(db, input([a.org.id]), ctx());

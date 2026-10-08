@@ -192,7 +192,7 @@ export const QUESTIONS: Question[] = [
 export const applicableQuestions = (a: Answers): Question[] => QUESTIONS.filter((q) => !q.when || q.when(a));
 
 const code = (dict: Record<string, unknown>, what: string) =>
-  z.string().refine((v) => v in dict, { message: `Unknown ${what}` });
+  z.string().refine((v) => Object.hasOwn(dict, v), { message: `Unknown ${what}` });
 
 /** Base fields always present. */
 export const baseAssessmentSchema = z.object({

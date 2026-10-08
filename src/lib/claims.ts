@@ -12,6 +12,7 @@ import {
   organizationJurisdictions,
   dataSources,
   consents,
+  sessions,
 } from "@/db/schema";
 import { audit, PUBLIC, userActor, type Actor } from "./audit";
 import { rateLimit } from "./ratelimit";
@@ -86,6 +87,7 @@ export async function approveClaim(db: DB, actor: Actor, claimId: string, note: 
     const [org] = await tx.select().from(organizations).where(eq(organizations.id, cl.organizationId)).for("update");
     if (!org || org.claimState === "claimed") throw new Error("Listing already claimed");
     const [existing] = await tx.select().from(users).where(eq(users.email, cl.claimantEmail));
+    if (existing && existing.role !== "provider") throw new Error("That email belongs to a staff account and cannot claim a listing");
     if (existing && existing.organizationId && existing.organizationId !== org.id) throw new Error("That email already manages another listing");
     let userId = existing?.id;
     if (!userId) {
@@ -130,6 +132,7 @@ export async function consumePasswordToken(db: DB, token: string, newPassword: s
     if (!t) return { ok: false as const, error: "This link is invalid or has expired" };
     await tx.update(users).set({ passwordHash: await hashPassword(newPassword) }).where(eq(users.id, t.userId));
     await tx.update(passwordTokens).set({ usedAt: now }).where(eq(passwordTokens.id, t.id));
+    await tx.delete(sessions).where(eq(sessions.userId, t.userId));
     await audit(tx, userActor(t.userId), "user.password_set", "user", t.userId);
     return { ok: true as const };
   });
@@ -137,7 +140,7 @@ export async function consumePasswordToken(db: DB, token: string, newPassword: s
 
 // ---------- Provider self-listing (primary supply path; see DECISIONS D-003) ----------
 
-const listCodes = (dict: Record<string, unknown>) => z.array(z.string().refine((v) => v in dict, "Unknown value"));
+const listCodes = (dict: Record<string, unknown>) => z.array(z.string().refine((v) => Object.hasOwn(dict, v), "Unknown value"));
 
 export const registrationSchema = z.object({
   legalName: z.string().trim().min(2).max(200),
@@ -158,7 +161,7 @@ export const registrationSchema = z.object({
   credentials: z
     .array(
       z.object({
-        type: z.string().refine((v) => CREDENTIAL_BY_CODE[v]?.subject === "organization", "Choose a firm-level registration (individual registrations are added later)"),
+        type: z.string().refine((v) => Object.hasOwn(CREDENTIAL_BY_CODE, v) && CREDENTIAL_BY_CODE[v]!.subject === "organization", "Choose a firm-level registration (individual registrations are added later)"),
         registrationNumber: z.string().trim().min(3, "Enter the registration number").max(50),
       }),
     )
