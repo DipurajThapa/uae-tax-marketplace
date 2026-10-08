@@ -1,0 +1,1 @@
+ALTER TABLE "enquiries" ADD COLUMN "manage_token_hash" text NOT NULL;

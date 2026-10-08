@@ -1,0 +1,17 @@
+# Decisions
+
+| ID | Date | Decision | Rationale | Alternatives | Consequences |
+|---|---|---|---|---|---|
+| D-001 | 2026-10-08 | New repo `uae-tax-marketplace`, separate from `corridor` | corridor's CLAUDE.md scopes it to an India↔UAE calculator and blocks lead capture; the owner chose a new repo | subfolder; pivot corridor | Clean rules; corridor untouched |
+| D-002 | 2026-10-08 | Single Next.js app + Postgres-only infrastructure (outbox, rate limits, jobs in PG) | Fewest moving parts for a small team; SSR for SEO | Fastify API + Redis/BullMQ | One DB to back up; scale limits documented in RISKS |
+| D-003 | 2026-10-08 | Supply comes from provider self-listing and claims, with one-at-a-time registration checks. No bulk import of the FTA or MoF registers | Register terms prohibit reuse without written consent (research ledger) | Scrape the registers | Slower supply growth; the import pipeline refuses `official_register` sources and sources without a terms review |
+| D-004 | 2026-10-08 | Only **claimed** listings can receive enquiries | Leads must reach an inbox the provider controls; also drives claiming | email the public address of unclaimed firms | Unclaimed firms are visible but not contactable via the platform |
+| D-005 | 2026-10-08 | Regulated services (FTA representation, ASP) require a **verified** credential to match | Avoid routing regulated work to unregistered firms | warn only | Fewer matches until reviewers verify |
+| D-006 | 2026-10-08 | Paid placement is a separate labelled block; it never touches ordering or scores | Trust; FTA conduct rules on "false promises" (agent-side risk) | boosted ranking | Lower promo value; defensible |
+| D-007 | 2026-10-08 | Commercial model: free (3 leads/month, cap 3), Professional AED 499 (10 incl., AED 150 overage, cap 30), Premium AED 1,499 (40 incl., AED 120 overage, cap 100, promotions) | Placeholder ASSUMPTIONS to exercise the system; no market evidence yet | per-lead only | The owner must set real prices; values live in the `plans` table |
+| D-008 | 2026-10-08 | Provider emails carry no buyer contact data; the provider signs in to view it | Minimise PII spread; every view is access-controlled | full lead in email | One extra click for providers |
+| D-009 | 2026-10-08 | Enquiry retention 12 months, then erasure; buyer self-service withdraw/erase link | PDPL consent-first posture | longer retention | `applyRetention` in the hourly worker |
+| D-010 | 2026-10-08 | Matching weights: services 45, verification 15, location 15, language 10, industry 10, size 5 | Service fit dominates; published on `/how-ranking-works` | ML ranking | Deterministic and explainable; revisit with data |
+| D-011 | 2026-10-08 | Direct contact details on public profiles only on paid plans (`showContactDetails`) | Monetisable feature that doesn't bias ranking | always show | Free listings are reached via enquiry |
+| D-012 | 2026-10-08 | Reviewer ≠ submitter for credential approval; buyer contact details are visible to admins only, not reviewers | Separation of duties, data minimisation | — | Needs at least 2 staff |
+| D-013 | 2026-10-08 | Indexing off by default; `robotsFor()` always returns an explicit value | Next drops inherited robots when a page passes `undefined` (found by E2E) | rely on the layout | Launch is a one-line, owner-approved switch |
