@@ -43,3 +43,25 @@ Admins and reviewers must use an authenticator app (TOTP). Lost device: another 
 
 ## Support
 Provider can't log in → issue a new set-password link (re-approve flow; TASK_BACKLOG OPS-05 tracks a self-service reset). Buyer lost the manage link → admin erases on request after confirming the email address.
+
+## Private staging (owner-approved 2026-10-08)
+
+Staging is private and holds demo or test data only: no real enquiries, and no email to real third parties.
+
+1. **Owner:** create the hosting account (recommended: Azure UAE North, see `docs/research/infrastructure-options-2026-10.md`) and approve the monthly cost.
+2. Create a PostgreSQL 16 database and a container app from the `Dockerfile` image.
+3. Set these environment variables as secrets, never in the repo:
+   - `NODE_ENV=production`, `APP_ENV=staging`
+   - `STAGING_BASIC_AUTH=owner:<random, at least 16 characters>` (`echo "owner:$(openssl rand -hex 16)"`)
+   - `APP_SECRET=$(openssl rand -hex 32)`
+   - `DATABASE_URL`, `SITE_URL=https://<staging host>`
+   - `ALLOW_INDEXING=false`, `ALLOW_SYNTHETIC_DATA=true`
+   - `MAIL_TRANSPORT=outbox-file` (mail is written to files, not sent)
+4. Release step: `npm run db:migrate`, then `npm run db:seed -- --demo`.
+5. Start the web container (`next start`) and the hourly worker (`npm run worker`).
+6. Check:
+   - `/api/health` returns 200;
+   - `/` returns 401 without credentials and 200 with them;
+   - responses carry `X-Robots-Tag: noindex`.
+7. Without `STAGING_BASIC_AUTH`, staging returns 503 on every page. This is deliberate (fail closed).
+8. Staff accounts: create them with the seed script; each enrols two-factor at first sign-in.

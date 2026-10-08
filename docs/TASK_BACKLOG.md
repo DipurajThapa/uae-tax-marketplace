@@ -42,6 +42,10 @@ Evidence for COMPLETE items: `EVIDENCE_LOG.md`.
 | ENG-13 | MFA for staff accounts | COMPLETE | RFC 6238 vectors, integration, E2E |
 | ENG-14 | Off-host encrypted backups + scheduled restore drill in CI | BLOCKED (OPS-01) | drill passes monthly |
 | ENG-15 | Nonce-based CSP (remove script `unsafe-inline`) | COMPLETE | E2E "ENG-15": zero CSP violations |
+| ENG-17 | Consent of named professionals before public display (PIA risk 1) | NOT STARTED | person gets a consent email; profile shows them only after consent; withdrawal hides them |
+| ENG-18 | Retention for removed professionals: scrub name, title and bio after 24 months with no open dispute (PIA risk 4) | NOT STARTED | `purgeExpiredPersonalData` test |
+| ENG-19 | Provider-set monthly capacity instead of a plan cap (pricing note; paid status must not change eligibility) | BLOCKED (owner confirms D6) | matching uses the provider's capacity; billing charges overage |
+| ENG-20 | Private staging access gate | COMPLETE | unit test + manual check on a production build (401/200/503) |
 
 Items from the adversarial review are added below when it reports (see `EVIDENCE_LOG.md`).
 
