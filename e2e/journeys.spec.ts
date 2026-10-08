@@ -186,6 +186,27 @@ test("SEO: crawlers blocked before launch, pages render without JavaScript", asy
   await ctx.close();
 });
 
+test("ENG-15: nonce-based CSP, no script unsafe-inline, no violations while pages hydrate", async ({ page, request }) => {
+  const a = (await request.get("/")).headers()["content-security-policy"] ?? "";
+  const b = (await request.get("/")).headers()["content-security-policy"] ?? "";
+  const scriptSrc = a.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
+  expect(scriptSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
+  expect(scriptSrc).not.toContain("unsafe-inline");
+  expect(a).not.toBe(b); // fresh nonce per request
+
+  const violations: string[] = [];
+  page.on("console", (m) => { if (/Content Security Policy|Refused to (execute|load)/i.test(m.text())) violations.push(m.text()); });
+  for (const path of ["/", "/providers", "/providers/e2e-verified-tax-agency", "/match", "/login", "/for-providers/register"]) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+  }
+  // The wizard is a client component: interacting proves the hydrated JS executed under the policy.
+  await page.goto("/match");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Choose at least one service")).toBeVisible();
+  expect(violations).toEqual([]);
+});
+
 test("accessibility: key pages have no serious axe violations", async ({ page }) => {
   for (const path of ["/", "/providers", "/providers/e2e-verified-tax-agency", "/match", "/for-providers", "/how-we-verify"]) {
     await page.goto(path);
