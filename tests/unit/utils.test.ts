@@ -99,3 +99,23 @@ describe("signed flash messages (review L3)", () => {
     expect(readFlash(signFlash("Saved").replace("Saved", "Hacked"))).toBeUndefined();
   });
 });
+
+import { totp, verifyTotp, base32Encode, base32Decode, hotp } from "@/lib/totp";
+describe("TOTP (RFC 6238 SHA-1 test vectors)", () => {
+  const secret = base32Encode(Buffer.from("12345678901234567890"));
+  it("matches the published vectors (last 6 digits)", () => {
+    expect(secret).toBe("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+    expect(totp(secret, new Date(59_000))).toBe("287082");
+    expect(totp(secret, new Date(1111111109_000))).toBe("081804");
+    expect(totp(secret, new Date(1234567890_000))).toBe("005924");
+    expect(hotp(base32Decode(secret), 0)).toBe("755224"); // RFC 4226 vector
+  });
+  it("accepts ±1 step only and rejects malformed codes", () => {
+    const t = new Date(1_700_000_000_000);
+    const prev = totp(secret, new Date(t.getTime() - 30_000));
+    expect(verifyTotp(secret, prev, t)).not.toBeNull();
+    expect(verifyTotp(secret, totp(secret, new Date(t.getTime() - 90_000)), t)).toBeNull();
+    expect(verifyTotp(secret, "12345", t)).toBeNull();
+    expect(verifyTotp(secret, "abcdef", t)).toBeNull();
+  });
+});

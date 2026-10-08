@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { nextCode } from "./mfa";
 
 /**
  * Cross-system scenarios from the product directive, exercised in a real browser against
@@ -12,7 +13,12 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"));
+  await page.waitForURL((u) => !(u.pathname === "/login"));
+  if (new URL(page.url()).pathname === "/login/mfa") {
+    await page.getByLabel("Authentication code").fill(await nextCode());
+    await page.getByRole("button", { name: "Verify" }).click();
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"));
+  }
 }
 
 async function signOut(page: Page) {
@@ -156,6 +162,23 @@ test("L4: a GET to /logout does not sign the user out", async ({ page }) => {
 test("L3: a crafted message in the URL is not shown", async ({ page }) => {
   await page.goto("/login?error=" + encodeURIComponent("Your account is locked. Call +971 50 000 0000"));
   await expect(page.getByText("Your account is locked")).toHaveCount(0);
+});
+
+test("ENG-13: staff need a second factor; a wrong code and a password alone get nowhere", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("admin@e2e.invalid");
+  await page.getByLabel("Password").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/login\/mfa/);
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/login\/mfa/); // password alone does not open admin
+  await page.getByLabel("Authentication code").fill("000000");
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page.getByText("That code did not work")).toBeVisible();
+  await page.getByLabel("Authentication code").fill(await nextCode());
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page).toHaveURL(/\/admin/);
+  await signOut(page);
 });
 
 test("9. unauthorised users cannot reach privileged areas", async ({ page }) => {

@@ -10,12 +10,14 @@ async function signIn(formData: FormData) {
   "use server";
   const res = await login(String(formData.get("email") ?? ""), String(formData.get("password") ?? ""));
   if (!res.ok) redirect(flashUrl("/login", "error", res.error));
+  if (res.user.stage === "mfa") redirect("/login/mfa");
+  if (res.user.stage === "enroll") redirect("/account/mfa-setup");
   redirect(res.user.role === "provider" ? "/provider" : "/admin");
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const user = await currentUser();
-  if (user) redirect(user.role === "provider" ? "/provider" : "/admin");
+  if (user) redirect(user.stage === "mfa" ? "/login/mfa" : user.stage === "enroll" ? "/account/mfa-setup" : user.role === "provider" ? "/provider" : "/admin");
   const sp = await searchParams;
   const error = readFlash(sp.error);
   const notice = readFlash(sp.notice);

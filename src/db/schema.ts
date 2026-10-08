@@ -246,6 +246,10 @@ export const users = pgTable(
     disabled: boolean("disabled").notNull().default(false),
     // Set when the user proves control of the inbox (verify link, or a set-password link sent there).
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    // TOTP second factor (ENG-13). Secret is AES-256-GCM encrypted; last step blocks code replay.
+    totpSecretEnc: text("totp_secret_enc"),
+    totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+    totpLastStep: integer("totp_last_step"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -257,6 +261,8 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  // "full" = signed in; staff sessions start at "mfa" (code required) or "enroll" (must set up MFA).
+  stage: text("stage").notNull().default("full"),
   createdAt: createdAt(),
 });
 
