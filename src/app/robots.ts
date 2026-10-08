@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { config } from "@/lib/config";
 
+export const dynamic = "force-dynamic";
+
 export default function robots(): MetadataRoute.Robots {
   if (!config.allowIndexing) return { rules: [{ userAgent: "*", disallow: "/" }] };
   return {

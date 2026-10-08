@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/client";
 import { getProviderBySlug } from "@/lib/providers";
+import { effectivePlan } from "@/lib/billing";
 import { CredentialLine, JsonLd } from "@/components/ui";
 import {
   CREDENTIAL_BY_CODE,
@@ -14,6 +15,7 @@ import {
   SERVICE_BY_CODE,
 } from "@/lib/taxonomy";
 import { config } from "@/lib/config";
+import { robotsFor } from "@/lib/seo";
 import { track } from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +38,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: `${name}: ${ORG_KIND_LABELS[p.org.kind]} in ${EMIRATE_BY_CODE[p.org.emirate]?.name}`,
     description: `${name} offers ${services}. See services, languages and which registrations have been checked.`,
     alternates: { canonical: `/providers/${slug}` },
-    robots: p.org.isSynthetic ? { index: false, follow: false } : undefined,
+    robots: robotsFor(!p.org.isSynthetic),
   };
 }
 
@@ -49,6 +51,8 @@ export default async function ProviderPage({ params }: Params) {
   const name = p.org.tradeName ?? p.org.legalName;
   const verified = p.credentials.filter((c) => c.status === "verified");
   const canReceive = p.org.claimState === "claimed" && p.org.acceptingEnquiries;
+  // Direct contact details are a paid-plan feature; free listings are reached through enquiries.
+  const showContact = p.org.claimState === "claimed" && (await effectivePlan(db, p.org.id, new Date())).features.showContactDetails;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -175,6 +179,8 @@ export default async function ProviderPage({ params }: Params) {
             )}
             <dl className="dl small" style={{ marginTop: 16 }}>
               {p.org.website && (<><dt>Website</dt><dd><a href={p.org.website} rel="nofollow noopener" target="_blank">{p.org.website.replace(/^https?:\/\//, "")}</a></dd></>)}
+              {showContact && p.org.publicEmail && (<><dt>Email</dt><dd><a href={`mailto:${p.org.publicEmail}`}>{p.org.publicEmail}</a></dd></>)}
+              {showContact && p.org.publicPhone && (<><dt>Phone</dt><dd><a href={`tel:${p.org.publicPhone.replace(/[^+0-9]/g, "")}`}>{p.org.publicPhone}</a></dd></>)}
               <dt>Languages</dt><dd>{p.org.languages.map((l) => LANGUAGE_BY_CODE[l]?.name ?? l).join(", ") || "Not stated"}</dd>
               <dt>Areas served</dt><dd>{p.jurisdictions.map((j) => JURISDICTION_BY_CODE[j]?.name ?? j).join(", ") || "Not stated"}</dd>
               {p.org.sizeBand && (<><dt>Team size</dt><dd>{p.org.sizeBand}</dd></>)}

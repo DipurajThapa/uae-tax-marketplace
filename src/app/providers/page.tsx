@@ -5,6 +5,7 @@ import { searchProviders, activePromotions, PAGE_SIZE, type SearchFilters } from
 import { SERVICES, EMIRATES, JURISDICTIONS, LANGUAGES, ORG_KIND_LABELS, CREDENTIAL_TYPES, SERVICE_BY_CODE, EMIRATE_BY_CODE, isEmirate, isService } from "@/lib/taxonomy";
 import { ProviderCard, Empty } from "@/components/ui";
 import { track } from "@/lib/analytics";
+import { robotsFor } from "@/lib/seo";
 
 type SP = Record<string, string | undefined>;
 
@@ -32,7 +33,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     title: parts.length ? `${parts.join(" ")} providers` : "UAE tax and e-invoicing providers",
     // Filtered combinations are not canonical pages; the service and location landing pages are.
     alternates: { canonical: "/providers" },
-    robots: filtered || (f.page ?? 1) > 1 ? { index: false, follow: true } : undefined,
+    robots: robotsFor(!filtered && (f.page ?? 1) === 1),
   };
 }
 

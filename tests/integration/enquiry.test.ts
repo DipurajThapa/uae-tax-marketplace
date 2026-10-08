@@ -144,6 +144,27 @@ describe("plan capacity and lead accounting", () => {
   });
 });
 
+describe("capacity under concurrency", () => {
+  it("parallel enquiries cannot push a provider past its monthly maximum", async () => {
+    const o = await makeOrg({ legalName: "Busy Firm" });
+    const results = await Promise.all(
+      [0, 1, 2, 3, 4, 5].map((i) => submitEnquiry(db, input([o.org.id], { contact: { contactName: "Par Allel", contactEmail: `par${i}@x.example` } }), { ip: `10.5.0.${i}`, now })),
+    );
+    const charges = await db.select().from(s.leadCharges).where(eq(s.leadCharges.organizationId, o.org.id));
+    expect(charges.length).toBeLessThanOrEqual(3); // free plan max
+    expect(results.filter((r) => r.ok).length).toBe(charges.length);
+    // Rejected submissions left no partial rows.
+    expect((await db.select().from(s.enquiries)).length).toBe(charges.length);
+  });
+
+  it("non-UUID ids are rejected without a database error", async () => {
+    const o = await makeOrg();
+    expect(await getRecipientForProvider(db, o.org.id, "not-a-uuid")).toBeNull();
+    const r = await submitEnquiry(db, input(["'; drop table enquiries; --"]), ctx());
+    expect(r.ok === false && r.code).toBe("ineligible_selection");
+  });
+});
+
 describe("scenario 3: provider receives and manages the enquiry", () => {
   it("provider sees only its own recipients and can accept", async () => {
     const a = await makeOrg({ legalName: "Alpha" });
@@ -226,6 +247,21 @@ describe("buyer withdrawal, erasure and retention", () => {
     expect(notes).toHaveLength(1);
     // Provider can no longer accept it.
     expect(await respondToEnquiry(db, userActor(a.user!.id), a.org.id, rec!.id, "accepted", undefined)).toBe(false);
+  });
+
+  it("erasure also removes the buyer receipt; sent emails keep no one-time tokens", async () => {
+    const a = await makeOrg();
+    const res = await submitEnquiry(db, input([a.org.id]), ctx());
+    if (!res.ok || !res.manageToken) throw new Error("setup");
+    await processOutbox(db, new MemoryTransport(), now);
+    const sent = await db.select().from(s.notifications);
+    expect(JSON.stringify(sent.map((n) => n.payload))).not.toContain(res.manageToken);
+    const admin = await makeUser("admin", "admin@example.invalid");
+    await expect(retryNotification(db, userActor(admin.id), sent[0]!.id)).rejects.toThrow(/failed or dead/);
+    await withdrawEnquiry(db, res.manageToken);
+    const left = await db.select().from(s.notifications);
+    expect(left.some((n) => n.template === "buyer_enquiry_receipt")).toBe(false);
+    expect(JSON.stringify(left)).not.toContain("jo@buyer.example");
   });
 
   it("retention erases enquiries older than 12 months only", async () => {

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { DB } from "@/db/client";
-import { consents, enquiries, enquiryRecipients, users, organizations } from "@/db/schema";
+import { consents, enquiries, enquiryRecipients, users, organizations, notifications } from "@/db/schema";
 import { validateAssessment, type Answers, type Assessment } from "./assessment";
 import { matchProviders, MAX_RECIPIENTS, type Match } from "./matching";
 import { loadCandidates } from "./providers";
@@ -10,11 +10,12 @@ import { rateLimit } from "./ratelimit";
 import { keyedHash, publicRef, randomToken, sha256 } from "./crypto";
 import { normalizeEmail } from "./text";
 import { ENQUIRY_CONSENT_VERSION, enquiryConsentText, consentHash } from "./consent";
-import { recordLeadCharge } from "./billing";
+import { recordLeadCharge, lockOrganizationsForCharging, CapacityExceededError } from "./billing";
 import { enqueue } from "./notify";
 import { audit, PUBLIC, type Actor } from "./audit";
 import { track } from "./analytics";
 import { EMIRATE_BY_CODE, SERVICE_BY_CODE } from "./taxonomy";
+import { isUuid } from "./validators";
 
 export const contactSchema = z.object({
   contactName: z.string().trim().min(2, "Enter your name").max(100),
@@ -58,6 +59,7 @@ export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: strin
   if (!assessed.ok) Object.assign(errors, assessed.errors);
   if (!contact.success) for (const i of contact.error.issues) errors[String(i.path[0])] ??= i.message;
   const selected = [...new Set(input.selectedProviderIds)].filter(Boolean);
+  if (selected.some((id) => !isUuid(id))) return { ok: false, code: "ineligible_selection", errors: { providers: "Unknown provider" } };
   if (selected.length === 0) errors.providers = "Choose at least one provider";
   if (selected.length > MAX_RECIPIENTS) errors.providers = `Choose up to ${MAX_RECIPIENTS} providers`;
   if (Object.keys(errors).length || !assessed.ok || !contact.success) return { ok: false, code: "validation", errors };
@@ -116,64 +118,72 @@ export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: strin
     .from(users)
     .where(and(inArray(users.organizationId, selected), eq(users.role, "provider"), eq(users.disabled, false)));
 
-  await db.transaction(async (tx) => {
-    const [consent] = await tx
-      .insert(consents)
-      .values({
-        textVersion: ENQUIRY_CONSENT_VERSION,
-        textHash: consentHash(consentText),
-        purposes: ["share_with_selected_providers", "service_record"],
-        recipientOrganizationIds: selected,
-        grantedAt: ctx.now,
-        ipHash,
-      })
-      .returning({ id: consents.id });
-    const [enq] = await tx
-      .insert(enquiries)
-      .values({
-        publicRef: ref,
-        status: "routed",
-        contactName: contact.data.contactName,
-        contactEmail: email,
-        contactPhone: contact.data.contactPhone ?? null,
-        companyName: contact.data.companyName ?? null,
-        assessment,
-        serviceCodes: assessment.services,
-        emirate: assessment.emirate,
-        message: contact.data.message ?? null,
-        consentId: consent!.id,
-        dedupeKey,
-        manageTokenHash: sha256(manageToken),
-        ipHash,
-        spamScore: spam.score,
-        createdAt: ctx.now,
-      })
-      .returning({ id: enquiries.id });
+  try {
+    await db.transaction(async (tx) => {
+      await lockOrganizationsForCharging(tx, selected);
+      const [consent] = await tx
+        .insert(consents)
+        .values({
+          textVersion: ENQUIRY_CONSENT_VERSION,
+          textHash: consentHash(consentText),
+          purposes: ["share_with_selected_providers", "service_record"],
+          recipientOrganizationIds: selected,
+          grantedAt: ctx.now,
+          ipHash,
+        })
+        .returning({ id: consents.id });
+      const [enq] = await tx
+        .insert(enquiries)
+        .values({
+          publicRef: ref,
+          status: "routed",
+          contactName: contact.data.contactName,
+          contactEmail: email,
+          contactPhone: contact.data.contactPhone ?? null,
+          companyName: contact.data.companyName ?? null,
+          assessment,
+          serviceCodes: assessment.services,
+          emirate: assessment.emirate,
+          message: contact.data.message ?? null,
+          consentId: consent!.id,
+          dedupeKey,
+          manageTokenHash: sha256(manageToken),
+          ipHash,
+          spamScore: spam.score,
+          createdAt: ctx.now,
+        })
+        .returning({ id: enquiries.id });
 
-    for (const m of chosen) {
-      const [rec] = await tx
-        .insert(enquiryRecipients)
-        .values({ enquiryId: enq!.id, organizationId: m.candidateId, matchScore: m.score, matchReasons: m.reasons, createdAt: ctx.now })
-        .returning({ id: enquiryRecipients.id });
-      await recordLeadCharge(tx, rec!.id, m.candidateId, ctx.now);
-      const to = recipientEmails.filter((r) => r.org === m.candidateId).map((r) => r.email);
-      for (const addr of to)
-        await enqueue(tx, {
-          to: addr,
-          template: "provider_new_enquiry",
-          payload: {
-            ref,
-            orgName: m.name,
-            recipientId: rec!.id,
-            services: assessment.services.map((s) => SERVICE_BY_CODE[s]?.name ?? s),
-            emirate: EMIRATE_BY_CODE[assessment.emirate]?.name ?? assessment.emirate,
-          },
-          enquiryRecipientId: rec!.id,
-        });
-    }
-    await enqueue(tx, { to: email, template: "buyer_enquiry_receipt", payload: { ref, name: contact.data.contactName, providers: names, manageToken } });
-    await audit(tx, PUBLIC, "enquiry.created", "enquiry", enq!.id, { ref, recipients: selected, services: assessment.services });
-  });
+      for (const m of chosen) {
+        const [rec] = await tx
+          .insert(enquiryRecipients)
+          .values({ enquiryId: enq!.id, organizationId: m.candidateId, matchScore: m.score, matchReasons: m.reasons, createdAt: ctx.now })
+          .returning({ id: enquiryRecipients.id });
+        await recordLeadCharge(tx, rec!.id, m.candidateId, ctx.now);
+        const to = recipientEmails.filter((r) => r.org === m.candidateId).map((r) => r.email);
+        for (const addr of to)
+          await enqueue(tx, {
+            to: addr,
+            template: "provider_new_enquiry",
+            payload: {
+              ref,
+              orgName: m.name,
+              recipientId: rec!.id,
+              services: assessment.services.map((s) => SERVICE_BY_CODE[s]?.name ?? s),
+              emirate: EMIRATE_BY_CODE[assessment.emirate]?.name ?? assessment.emirate,
+            },
+            enquiryRecipientId: rec!.id,
+          });
+      }
+      await enqueue(tx, { to: email, template: "buyer_enquiry_receipt", payload: { ref, name: contact.data.contactName, providers: names, manageToken } });
+      await audit(tx, PUBLIC, "enquiry.created", "enquiry", enq!.id, { ref, recipients: selected, services: assessment.services });
+    });
+  } catch (e) {
+    // A provider filled its monthly allowance between matching and submission: nothing was written.
+    if (e instanceof CapacityExceededError)
+      return { ok: false, code: "ineligible_selection", errors: { providers: "One of the selected providers has just reached its monthly enquiry limit. Please review your matches." } };
+    throw e;
+  }
 
   await track(db, "enquiry_submitted", { count: chosen.length, service: assessment.services[0], emirate: assessment.emirate });
   return { ok: true, ref, manageToken, duplicate: false };
@@ -202,8 +212,10 @@ export async function eraseEnquiry(db: DB, actor: Actor, enquiryId: string, now 
       : [];
     await tx
       .update(enquiries)
-      .set({ status: "erased", erasedAt: now, contactName: "[erased]", contactEmail: "[erased]", contactPhone: null, companyName: null, message: null })
+      .set({ status: "erased", erasedAt: now, contactName: "[erased]", contactEmail: "[erased]", contactPhone: null, companyName: null, message: null, ipHash: null })
       .where(eq(enquiries.id, enquiryId));
+    // The buyer's receipt holds their name, email and manage token: remove it too.
+    await tx.delete(notifications).where(and(eq(notifications.template, "buyer_enquiry_receipt"), sql`${notifications.payload}->>'ref' = ${enq.publicRef}`));
     await tx.update(enquiryRecipients).set({ status: "closed" }).where(eq(enquiryRecipients.enquiryId, enquiryId));
     for (const u of providerUsers) await enqueue(tx, { to: u.email, template: "provider_enquiry_withdrawn", payload: { ref: enq.publicRef } });
     await audit(tx, actor, "enquiry.erased", "enquiry", enquiryId, { ref: enq.publicRef });
@@ -212,6 +224,7 @@ export async function eraseEnquiry(db: DB, actor: Actor, enquiryId: string, now 
 
 /** Provider-facing access with an ownership check. Returns null when the user's organisation is not a recipient. */
 export async function getRecipientForProvider(db: DB, organizationId: string, recipientId: string, now = new Date()) {
+  if (!isUuid(recipientId) || !isUuid(organizationId)) return null;
   const [row] = await db
     .select({ rec: enquiryRecipients, enq: enquiries, org: organizations })
     .from(enquiryRecipients)
@@ -237,6 +250,7 @@ export async function respondToEnquiry(
   note: string | undefined,
   now = new Date(),
 ): Promise<boolean> {
+  if (!isUuid(recipientId) || !isUuid(organizationId)) return false;
   return db.transaction(async (tx) => {
     const [rec] = await tx
       .select({ rec: enquiryRecipients, status: enquiries.status })

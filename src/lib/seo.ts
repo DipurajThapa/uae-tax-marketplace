@@ -20,4 +20,9 @@ export async function isIndexable(db: DB, f: { service?: string; emirate?: strin
   return (await realProviderCount(db, f)) >= MIN_INDEXABLE_PROVIDERS;
 }
 
-export const robotsFor = (indexable: boolean) => (indexable ? undefined : { index: false, follow: true });
+/**
+ * Robots metadata for a page. Always returns an explicit value: Next.js drops the layout's robots
+ * setting when a page passes `undefined`, which would silently re-enable indexing before launch.
+ */
+export const robotsFor = (indexable: boolean) =>
+  config.allowIndexing && indexable ? { index: true, follow: true } : { index: false, follow: config.allowIndexing };

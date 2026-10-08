@@ -3,10 +3,11 @@ import { z } from "zod";
 import type { DB } from "@/db/client";
 import { articles } from "@/db/schema";
 import { audit, type Actor } from "./audit";
+import { httpUrl } from "./validators";
 
 export const articleSourceSchema = z.object({
   title: z.string().min(3),
-  url: z.string().url(),
+  url: httpUrl(),
   tier: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   accessedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });

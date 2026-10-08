@@ -10,7 +10,7 @@ import {
   promotions,
 } from "@/db/schema";
 import { config } from "./config";
-import { capacityRemaining } from "./billing";
+import { capacityRemaining, effectivePlan } from "./billing";
 import type { Candidate } from "./matching";
 import { CREDENTIAL_BY_CODE } from "./taxonomy";
 
@@ -210,8 +210,11 @@ export async function activePromotions(db: DB, p: { placement: string; service?:
     .innerJoin(organizations, eq(organizations.id, promotions.organizationId))
     .where(and(...conds))
     .orderBy(asc(organizations.legalName))
-    .limit(3);
-  return hydrate(db, rows.map((r) => r.org));
+    .limit(10);
+  // A promotion only runs while the plan in force still includes promotions.
+  const eligible = [];
+  for (const r of rows) if ((await effectivePlan(db, r.org.id, p.now)).canPromote) eligible.push(r.org);
+  return hydrate(db, eligible.slice(0, 3));
 }
 
 /** A badge is shown only for verified credentials; anything else is displayed as "not verified". */

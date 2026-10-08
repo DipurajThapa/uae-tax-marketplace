@@ -10,6 +10,7 @@ import {
   credentials,
 } from "@/db/schema";
 import { audit, type Actor } from "./audit";
+import { httpUrl } from "./validators";
 import { effectivePlan } from "./billing";
 import { SERVICE_BY_CODE, JURISDICTION_BY_CODE, INDUSTRY_BY_CODE, LANGUAGE_BY_CODE, CREDENTIAL_BY_CODE } from "./taxonomy";
 
@@ -20,7 +21,7 @@ export const profileUpdateSchema = z.object({
   tradeName: z.string().trim().max(200).optional().transform((v) => v || null),
   city: z.string().trim().max(100).optional().transform((v) => v || null),
   address: z.string().trim().max(300).optional().transform((v) => v || null),
-  website: z.string().trim().url().max(200).optional().or(z.literal("").transform(() => undefined)).transform((v) => v ?? null),
+  website: httpUrl().optional().or(z.literal("").transform(() => undefined)).transform((v) => v ?? null),
   publicEmail: z.string().trim().email().max(200).optional().or(z.literal("").transform(() => undefined)).transform((v) => v ?? null),
   publicPhone: z.string().trim().max(30).regex(/^[+0-9 ()-]*$/).optional().transform((v) => v || null),
   description: z.string().trim().max(4000).optional().transform((v) => v || null),
@@ -56,7 +57,7 @@ export async function updateOwnProfile(db: DB, actor: Actor, organizationId: str
 
 export const credentialSubmissionSchema = z.object({
   credentialType: z.string().refine((v) => CREDENTIAL_BY_CODE[v]?.subject === "organization", "Choose a firm-level registration"),
-  registrationNumber: z.string().trim().min(3).max(50),
+  registrationNumber: z.string().trim().min(3, "Enter the registration number").max(50),
   evidenceNote: z.string().trim().min(10, "Tell the reviewer where to check this registration").max(1000),
 });
 
@@ -88,7 +89,12 @@ export async function submitCredential(db: DB, actor: Actor, organizationId: str
 
 export async function setListingStatus(db: DB, actor: Actor, organizationId: string, status: "published" | "suspended" | "draft" | "removed", note: string, now = new Date()) {
   await db.transaction(async (tx) => {
-    await tx.update(organizations).set({ listingStatus: status, lastReviewedAt: now, updatedAt: now }).where(eq(organizations.id, organizationId));
+    const updated = await tx
+      .update(organizations)
+      .set({ listingStatus: status, lastReviewedAt: now, updatedAt: now })
+      .where(eq(organizations.id, organizationId))
+      .returning({ id: organizations.id });
+    if (updated.length === 0) throw new Error("Organisation not found");
     await audit(tx, actor, `organization.${status}`, "organization", organizationId, { note });
   });
 }

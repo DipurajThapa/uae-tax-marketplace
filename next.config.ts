@@ -25,6 +25,8 @@ const securityHeaders = [
 const config: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["pg"],
+  // CSV imports are limited to 2 MB in the action itself; allow a little headroom for form encoding.
+  experimental: { serverActions: { bodySizeLimit: "3mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

@@ -58,3 +58,18 @@ describe("analytics", () => {
     expect(sanitizeProps({ email: "a@b.c", service: "vat-returns", orgId: "x@y", count: 2 })).toEqual({ service: "vat-returns", count: 2 });
   });
 });
+
+import { httpUrl, isUuid } from "@/lib/validators";
+describe("validators", () => {
+  it("accepts only http(s) URLs with a real hostname", () => {
+    const v = httpUrl();
+    expect(v.safeParse("https://firm.ae").success).toBe(true);
+    expect(v.safeParse("javascript:alert(1)").success).toBe(false);
+    expect(v.safeParse("data:text/html,hi").success).toBe(false);
+    expect(v.safeParse("https://localhost").success).toBe(false);
+  });
+  it("uuid", () => {
+    expect(isUuid("6f1c2b0e-8f4e-4c5a-9a7b-2d3e4f5a6b7c")).toBe(true);
+    expect(isUuid("1 or 1=1")).toBe(false);
+  });
+});

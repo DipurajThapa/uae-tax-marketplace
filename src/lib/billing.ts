@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql, desc } from "drizzle-orm";
 import type { DB } from "@/db/client";
-import { plans, subscriptions, leadCharges, enquiryRecipients } from "@/db/schema";
+import { plans, subscriptions, leadCharges, enquiryRecipients, organizations } from "@/db/schema";
 import { audit, type Actor } from "./audit";
 
 /**
@@ -70,7 +70,26 @@ export async function capacityRemaining(db: DB, organizationIds: string[], now: 
 
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
-/** Records the lead charge for a routed enquiry. Within allowance → included at 0; beyond → overage price. */
+export class CapacityExceededError extends Error {
+  constructor(public organizationId: string) {
+    super("Provider reached its monthly enquiry limit");
+  }
+}
+
+/**
+ * Serialises lead accounting per provider. Call at the START of the transaction, before inserting rows
+ * that reference organisations, and lock in sorted order so multi-provider enquiries cannot deadlock.
+ * NO KEY UPDATE does not conflict with the KEY SHARE locks taken by foreign-key inserts.
+ */
+export async function lockOrganizationsForCharging(tx: Tx, organizationIds: string[]): Promise<void> {
+  for (const id of [...organizationIds].sort())
+    await tx.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, id)).for("no key update");
+}
+
+/**
+ * Records the lead charge for a routed enquiry. Within allowance → included at 0; beyond → overage price.
+ * The caller must hold lockOrganizationsForCharging for this organisation.
+ */
 export async function recordLeadCharge(tx: Tx, recipientId: string, organizationId: string, now: Date): Promise<void> {
   const plan = await effectivePlan(tx as unknown as DB, organizationId, now);
   const [row] = await tx
@@ -78,6 +97,7 @@ export async function recordLeadCharge(tx: Tx, recipientId: string, organization
     .from(leadCharges)
     .where(and(eq(leadCharges.organizationId, organizationId), eq(leadCharges.periodMonth, periodMonth(now)), sql`${leadCharges.status} <> 'waived'`));
   const used = row?.n ?? 0;
+  if (used >= plan.maxLeadsPerMonth) throw new CapacityExceededError(organizationId);
   const included = used < plan.includedLeadsPerMonth;
   await tx.insert(leadCharges).values({
     enquiryRecipientId: recipientId,
@@ -91,7 +111,8 @@ export async function recordLeadCharge(tx: Tx, recipientId: string, organization
 /** Provider disputes a lead (e.g. fake contact). Admin decides; waived charges free up capacity. */
 export async function setChargeStatus(db: DB, actor: Actor, chargeId: string, status: "waived" | "disputed" | "pending" | "invoiced", reason: string) {
   await db.transaction(async (tx) => {
-    await tx.update(leadCharges).set({ status, reason }).where(eq(leadCharges.id, chargeId));
+    const updated = await tx.update(leadCharges).set({ status, reason }).where(eq(leadCharges.id, chargeId)).returning({ id: leadCharges.id });
+    if (updated.length === 0) throw new Error("Charge not found");
     await audit(tx, actor, `lead_charge.${status}`, "lead_charge", chargeId, { reason });
   });
 }
@@ -101,7 +122,8 @@ export async function setChargeStatus(db: DB, actor: Actor, chargeId: string, st
 export interface BillingProvider {
   readonly name: string;
   subscribe(db: DB, actor: Actor, organizationId: string, planCode: string, now: Date): Promise<string>;
-  cancel(db: DB, actor: Actor, subscriptionId: string, now: Date): Promise<void>;
+  /** organizationId, when given, scopes the change so a provider can only touch its own subscription. */
+  cancel(db: DB, actor: Actor, subscriptionId: string, now: Date, organizationId?: string): Promise<void>;
   markPastDue(db: DB, actor: Actor, subscriptionId: string): Promise<void>;
 }
 
@@ -124,15 +146,17 @@ export const testBillingProvider: BillingProvider = {
         .where(and(eq(subscriptions.organizationId, organizationId), inArray(subscriptions.status, [...ACTIVE, "past_due"])));
       const [sub] = await tx
         .insert(subscriptions)
-        .values({ organizationId, planCode, status: "active", billingProvider: "test", externalRef: `test_${Date.now()}`, currentPeriodStart: now, currentPeriodEnd: addMonths(now, 1) })
+        .values({ organizationId, planCode, status: "active", billingProvider: "test", externalRef: `test_${now.getTime()}`, currentPeriodStart: now, currentPeriodEnd: addMonths(now, 1) })
         .returning({ id: subscriptions.id });
       await audit(tx, actor, "subscription.created", "organization", organizationId, { planCode, provider: "test" });
       return sub!.id;
     });
   },
-  async cancel(db, actor, subscriptionId, now) {
+  async cancel(db, actor, subscriptionId, now, organizationId) {
     await db.transaction(async (tx) => {
-      await tx.update(subscriptions).set({ status: "canceled", canceledAt: now }).where(eq(subscriptions.id, subscriptionId));
+      const scope = organizationId ? and(eq(subscriptions.id, subscriptionId), eq(subscriptions.organizationId, organizationId)) : eq(subscriptions.id, subscriptionId);
+      const updated = await tx.update(subscriptions).set({ status: "canceled", canceledAt: now }).where(scope).returning({ id: subscriptions.id });
+      if (updated.length === 0) throw new Error("Subscription not found");
       await audit(tx, actor, "subscription.canceled", "subscription", subscriptionId);
     });
   },
@@ -152,7 +176,13 @@ export async function revenueSummary(db: DB, month: string) {
     .select({ plan: subscriptions.planCode, n: sql<number>`count(*)::int`, mrr: sql<number>`coalesce(sum(${plans.monthlyPriceAed}),0)::int` })
     .from(subscriptions)
     .innerJoin(plans, eq(plans.code, subscriptions.planCode))
-    .where(inArray(subscriptions.status, [...ACTIVE]))
+    .where(
+      and(
+        inArray(subscriptions.status, [...ACTIVE]),
+        sql`${subscriptions.currentPeriodStart} < (to_date(${month}, 'YYYY-MM') + interval '1 month')`,
+        sql`${subscriptions.currentPeriodEnd} > to_date(${month}, 'YYYY-MM')`,
+      ),
+    )
     .groupBy(subscriptions.planCode);
   const [leads] = await db
     .select({

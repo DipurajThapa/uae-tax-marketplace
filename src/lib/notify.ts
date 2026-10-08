@@ -81,6 +81,11 @@ export function render(template: Template, p: Record<string, unknown>): Omit<Mai
 
 const BACKOFF_MINUTES = [1, 5, 30, 120, 720];
 
+/** One-time secrets needed only to render the email. Removed from the stored payload once sent. */
+const SECRET_KEYS = ["setPasswordToken", "manageToken"];
+const redact = (payload: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, SECRET_KEYS.includes(k) ? "[redacted after send]" : v]));
+
 /** Processes due notifications. Safe to run concurrently (SKIP LOCKED). Returns counts. */
 export async function processOutbox(db: DB, transport: MailTransport = defaultTransport(), now = new Date(), batch = 50) {
   const result = { sent: 0, failed: 0, dead: 0 };
@@ -104,7 +109,10 @@ export async function processOutbox(db: DB, transport: MailTransport = defaultTr
       const mail = render(n.template as Template, n.payload as Record<string, unknown>);
       await transport.send({ to: n.toAddress, ...mail });
       await db.transaction(async (tx) => {
-        await tx.update(notifications).set({ status: "sent", attempts, sentAt: now, lastError: null }).where(eq(notifications.id, n.id));
+        await tx
+          .update(notifications)
+          .set({ status: "sent", attempts, sentAt: now, lastError: null, payload: redact(n.payload as Record<string, unknown>) })
+          .where(eq(notifications.id, n.id));
         if (n.enquiryRecipientId)
           await tx
             .update(enquiryRecipients)
@@ -136,7 +144,12 @@ export async function processOutbox(db: DB, transport: MailTransport = defaultTr
 /** Admin action: put a dead or failed notification back in the queue. */
 export async function retryNotification(db: DB, actor: Actor, id: string, now = new Date()) {
   await db.transaction(async (tx) => {
-    await tx.update(notifications).set({ status: "pending", attempts: 0, nextAttemptAt: now }).where(eq(notifications.id, id));
+    const updated = await tx
+      .update(notifications)
+      .set({ status: "pending", attempts: 0, nextAttemptAt: now })
+      .where(and(eq(notifications.id, id), inArray(notifications.status, ["failed", "dead"])))
+      .returning({ id: notifications.id });
+    if (updated.length === 0) throw new Error("Only failed or dead notifications can be retried");
     await audit(tx, actor, "notification.retry", "notification", id);
   });
 }

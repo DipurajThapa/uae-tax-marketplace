@@ -4,9 +4,11 @@ import { getDb, closeDb } from "@/db/client";
 import * as s from "@/db/schema";
 import { userActor } from "@/lib/audit";
 import { submitClaim, approveClaim, rejectClaim, registerProvider, consumePasswordToken } from "@/lib/claims";
-import { verifyCredential, sweepStaleCredentials, openDispute, resolveDispute, approveSubmission } from "@/lib/verification";
+import { verifyCredential, sweepStaleCredentials, openDispute, resolveDispute, approveSubmission, revokeCredential } from "@/lib/verification";
+import { createPromotion } from "@/lib/promotions";
+import { testBillingProvider } from "@/lib/billing";
 import { stageImport, commitImport, ImportBlockedError } from "@/lib/importer";
-import { searchProviders, getProviderBySlug } from "@/lib/providers";
+import { searchProviders, getProviderBySlug, activePromotions } from "@/lib/providers";
 import { verifyPassword } from "@/lib/crypto";
 import { resetDb, makeOrg, makeUser, expectDbError } from "./helpers";
 
@@ -163,6 +165,38 @@ describe("scenario 6: disputed or expired verification is updated safely", () =>
     const d = await openDispute(db, { organizationId: org.id, reporterEmail: "x@y.example", reason: "business_closed", details: "Office closed in June" }, ctx());
     if (d.ok) await resolveDispute(db, userActor(rev.id), d.id, "upheld", "Confirmed", now);
     expect((await db.select().from(s.organizations))[0]!.listingStatus).toBe("suspended");
+  });
+});
+
+describe("revocation and promotions", () => {
+  it("revoking keeps the original evidence and records the reason in the audit log", async () => {
+    const rev = await makeUser("reviewer", "rev@example.invalid");
+    await makeOrg({ verified: ["FTA_TAX_AGENCY"] });
+    const [c] = await db.select().from(s.credentials);
+    await revokeCredential(db, userActor(rev.id), c!.id, "Removed from register");
+    const [after] = await db.select().from(s.credentials);
+    expect(after!.status).toBe("revoked");
+    expect(after!.evidenceNote).toBe(c!.evidenceNote);
+    await expect(revokeCredential(db, userActor(rev.id), c!.id, "again please")).rejects.toThrow(/Already/);
+  });
+
+  it("promotions need a promotable plan, and stop showing when the plan lapses", async () => {
+    const admin = await makeUser("admin", "admin@example.invalid");
+    const { org } = await makeOrg();
+    const window = { organizationId: org.id, placement: "search" as const, serviceCode: null, emirate: null, startsAt: new Date(now.getTime() - 3600_000), endsAt: new Date(now.getTime() + 86400_000) };
+    await expect(createPromotion(db, userActor(admin.id), window, now)).rejects.toThrow(/does not include promotions/);
+    const subId = await testBillingProvider.subscribe(db, userActor(admin.id), org.id, "premium", new Date(now.getTime() - 7200_000));
+    await createPromotion(db, userActor(admin.id), window, now);
+    expect(await activePromotions(db, { placement: "search", now })).toHaveLength(1);
+    await testBillingProvider.cancel(db, userActor(admin.id), subId, now);
+    expect(await activePromotions(db, { placement: "search", now })).toHaveLength(0);
+  });
+
+  it("a provider cannot cancel another organisation's subscription", async () => {
+    const a = await makeOrg();
+    const b = await makeOrg();
+    const subId = await testBillingProvider.subscribe(db, userActor(a.user!.id), a.org.id, "professional", now);
+    await expect(testBillingProvider.cancel(db, userActor(b.user!.id), subId, now, b.org.id)).rejects.toThrow(/not found/);
   });
 });
 

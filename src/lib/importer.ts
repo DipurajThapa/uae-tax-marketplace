@@ -176,7 +176,12 @@ export async function commitImport(db: DB, actor: Actor, batchId: string, now = 
 
 export async function discardImport(db: DB, actor: Actor, batchId: string) {
   await db.transaction(async (tx) => {
-    await tx.update(importBatches).set({ state: "discarded" }).where(eq(importBatches.id, batchId));
+    const updated = await tx
+      .update(importBatches)
+      .set({ state: "discarded" })
+      .where(and(eq(importBatches.id, batchId), eq(importBatches.state, "staged")))
+      .returning({ id: importBatches.id });
+    if (updated.length === 0) throw new Error("Only a staged batch can be discarded");
     await tx.update(importRows).set({ state: "skipped" }).where(and(eq(importRows.batchId, batchId), eq(importRows.state, "valid")));
     await audit(tx, actor, "import.discarded", "import_batch", batchId);
   });

@@ -20,6 +20,8 @@ import { domainOf, normalizeEmail, normalizeName, slugify } from "./text";
 import { enqueue } from "./notify";
 import { track } from "./analytics";
 import { CREDENTIAL_BY_CODE, isEmirate, SERVICE_BY_CODE, JURISDICTION_BY_CODE } from "./taxonomy";
+import { httpUrl } from "./validators";
+import { LANGUAGE_BY_CODE } from "./taxonomy";
 import { PROVIDER_LISTING_CONSENT_TEXT, PROVIDER_LISTING_CONSENT_VERSION, consentHash } from "./consent";
 
 export const claimSchema = z.object({
@@ -125,18 +127,23 @@ export const registrationSchema = z.object({
   kind: z.enum(["tax_agency", "accounting_firm", "einvoicing_provider", "law_firm", "independent_consultant"]),
   emirate: z.string().refine(isEmirate, "Choose an emirate"),
   city: z.string().trim().max(100).optional().transform((v) => v || undefined),
-  website: z.string().trim().url("Enter a full URL, e.g. https://example.ae").max(200).optional().or(z.literal("").transform(() => undefined)),
+  website: httpUrl("Enter a full URL, e.g. https://example.ae").optional().or(z.literal("").transform(() => undefined)),
   publicEmail: z.string().trim().email().max(200),
   publicPhone: z.string().trim().max(30).regex(/^[+0-9 ()-]*$/).optional().transform((v) => v || undefined),
   description: z.string().trim().max(600).optional().transform((v) => v || undefined),
   services: listCodes(SERVICE_BY_CODE).min(1, "Choose at least one service"),
   jurisdictions: listCodes(JURISDICTION_BY_CODE).default([]),
-  languages: z.array(z.string()).default([]),
+  languages: listCodes(LANGUAGE_BY_CODE).default([]),
   contactName: z.string().trim().min(2).max(100),
   contactEmail: z.string().trim().email().max(200),
   password: z.string().min(12, "Use at least 12 characters").max(200),
   credentials: z
-    .array(z.object({ type: z.string().refine((v) => v in CREDENTIAL_BY_CODE, "Unknown credential"), registrationNumber: z.string().trim().min(3).max(50) }))
+    .array(
+      z.object({
+        type: z.string().refine((v) => CREDENTIAL_BY_CODE[v]?.subject === "organization", "Choose a firm-level registration (individual registrations are added later)"),
+        registrationNumber: z.string().trim().min(3, "Enter the registration number").max(50),
+      }),
+    )
     .max(10)
     .default([]),
   consent: z.literal(true, { message: "You must confirm you are authorised to list this business" }),
@@ -144,7 +151,7 @@ export const registrationSchema = z.object({
 
 export async function registerProvider(db: DB, input: unknown, ctx: { ip: string; now: Date }) {
   const parsed = registrationSchema.safeParse(input);
-  if (!parsed.success) return { ok: false as const, errors: Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])) };
+  if (!parsed.success) return { ok: false as const, errors: Object.fromEntries(parsed.error.issues.map((i) => [i.path.join("."), i.message])) };
   const r = parsed.data;
   const rl = await rateLimit(db, "register_ip", keyedHash(`ip:${ctx.ip}`), 3, 3600, ctx.now);
   if (!rl.allowed) return { ok: false as const, errors: { form: "Too many attempts. Try again later." } };
@@ -177,7 +184,7 @@ export async function registerProvider(db: DB, input: unknown, ctx: { ip: string
         publicEmail: normalizeEmail(r.publicEmail),
         publicPhone: r.publicPhone ?? null,
         description: r.description ?? null,
-        languages: r.languages.filter((l) => /^[a-z]{2}$/.test(l)),
+        languages: r.languages,
         listingStatus: "draft", // admin publishes after review
         claimState: "claimed",
         sourceId: source.id,
@@ -193,8 +200,6 @@ export async function registerProvider(db: DB, input: unknown, ctx: { ip: string
       .values({ email, name: r.contactName, role: "provider", organizationId: orgId, passwordHash: await hashPassword(r.password) })
       .returning({ id: users.id });
     for (const c of r.credentials) {
-      const def = CREDENTIAL_BY_CODE[c.type]!;
-      if (def.subject !== "organization") continue; // individual credentials are added per professional later
       const [cred] = await tx
         .insert(credentials)
         .values({ credentialType: c.type, organizationId: orgId, registrationNumber: c.registrationNumber, status: "pending", method: "self_declared", sourceId: source.id })

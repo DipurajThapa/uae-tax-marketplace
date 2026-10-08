@@ -5,13 +5,14 @@ import { credentials, credentialTypes, disputes, credentialSubmissions, organiza
 import { audit, PUBLIC, SYSTEM, type Actor } from "./audit";
 import { rateLimit } from "./ratelimit";
 import { keyedHash } from "./crypto";
+import { httpUrl } from "./validators";
 
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400_000);
 
 export const verifyInputSchema = z.object({
   method: z.enum(["official_register", "document_review"]),
   evidenceNote: z.string().trim().min(10, "Describe what was checked, where and when").max(1000),
-  evidenceUrl: z.string().trim().url().optional().or(z.literal("").transform(() => undefined)),
+  evidenceUrl: httpUrl().optional().or(z.literal("").transform(() => undefined)),
   registrationNumber: z.string().trim().max(50).optional(),
   expiresAt: z.coerce.date().optional(),
 });
@@ -55,10 +56,17 @@ export async function verifyCredential(db: DB, actor: Actor, credentialId: strin
   });
 }
 
+/** Revokes a credential. The original evidence is kept; the reason goes to the audit log. */
 export async function revokeCredential(db: DB, actor: Actor, credentialId: string, note: string, now = new Date()) {
+  if (!actor.userId) throw new Error("A named reviewer is required");
+  if (note.trim().length < 5) throw new Error("Give a reason");
   await db.transaction(async (tx) => {
-    await tx.update(credentials).set({ status: "revoked", evidenceNote: note, updatedAt: now }).where(eq(credentials.id, credentialId));
-    await audit(tx, actor, "credential.revoked", "credential", credentialId, { note });
+    const [c] = await tx.select().from(credentials).where(eq(credentials.id, credentialId)).for("update");
+    if (!c) throw new Error("Credential not found");
+    if (c.status === "disputed") throw new Error("Resolve the open dispute instead");
+    if (c.status === "revoked") throw new Error("Already revoked");
+    await tx.update(credentials).set({ status: "revoked", updatedAt: now }).where(eq(credentials.id, credentialId));
+    await audit(tx, actor, "credential.revoked", "credential", credentialId, { note, previousStatus: c.status });
   });
 }
 
@@ -142,23 +150,25 @@ export async function resolveDispute(db: DB, actor: Actor, disputeId: string, ou
 
 // ---------- Credential submissions from providers ----------
 
+/** Approves a provider's submission and verifies the credential in ONE transaction (no orphan rows on failure). */
 export async function approveSubmission(db: DB, actor: Actor, submissionId: string, input: z.input<typeof verifyInputSchema>, now = new Date()) {
-  const [s] = await db.select().from(credentialSubmissions).where(eq(credentialSubmissions.id, submissionId));
-  if (!s || s.state !== "pending") throw new Error("Submission is not pending");
-  if (s.submittedBy === actor.userId) throw new Error("Reviewers cannot approve their own submission");
-  let credentialId = s.credentialId;
-  if (!credentialId) {
-    const [c] = await db
-      .insert(credentials)
-      .values({ credentialType: s.credentialType, organizationId: s.organizationId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" })
-      .returning({ id: credentials.id });
-    credentialId = c!.id;
-  }
-  await verifyCredential(db, actor, credentialId, { ...input, registrationNumber: input.registrationNumber ?? s.registrationNumber }, now);
   await db.transaction(async (tx) => {
+    const [s] = await tx.select().from(credentialSubmissions).where(eq(credentialSubmissions.id, submissionId)).for("update");
+    if (!s || s.state !== "pending") throw new Error("Submission is not pending");
+    if (s.submittedBy === actor.userId) throw new Error("Reviewers cannot approve their own submission");
+    let credentialId = s.credentialId;
+    if (!credentialId) {
+      const [c] = await tx
+        .insert(credentials)
+        .values({ credentialType: s.credentialType, organizationId: s.organizationId, registrationNumber: s.registrationNumber, status: "pending", method: "self_declared" })
+        .returning({ id: credentials.id });
+      credentialId = c!.id;
+    }
+    // Nested call runs as a savepoint inside this transaction.
+    await verifyCredential(tx as unknown as DB, actor, credentialId, { ...input, registrationNumber: input.registrationNumber ?? s.registrationNumber }, now);
     await tx
       .update(credentialSubmissions)
-      .set({ state: "approved", reviewedBy: actor.userId, reviewedAt: now, credentialId, reviewNote: input.evidenceNote })
+      .set({ state: "approved", reviewedBy: actor.userId, reviewedAt: now, credentialId, reviewNote: "Verified" })
       .where(eq(credentialSubmissions.id, submissionId));
     await audit(tx, actor, "credential_submission.approved", "credential_submission", submissionId, { credentialId });
   });
