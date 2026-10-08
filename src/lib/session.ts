@@ -14,10 +14,17 @@ const TTL_HOURS = 12;
 
 export type SessionUser = { id: string; email: string; name: string; role: "admin" | "reviewer" | "provider"; organizationId: string | null };
 
+/**
+ * Client IP for rate limiting. X-Forwarded-For is client-controlled except for the entries appended
+ * by our own proxies, so we take the entry TRUSTED_PROXY_HOPS from the right (default 1: one reverse
+ * proxy in front of the app). Spoofed values the client prepends are ignored.
+ */
 export async function clientIp(): Promise<string> {
   const h = await headers();
-  // Behind a trusted proxy the first X-Forwarded-For entry is the client. Configure the proxy to overwrite it.
-  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "0.0.0.0";
+  const hops = Math.max(0, Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? "1", 10) || 0);
+  const chain = (h.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (hops > 0 && chain.length >= hops) return chain[chain.length - hops]!;
+  return "unknown";
 }
 
 export async function login(emailRaw: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }> {
@@ -25,7 +32,9 @@ export async function login(emailRaw: string, password: string): Promise<{ ok: t
   const email = normalizeEmail(emailRaw);
   const ip = await clientIp();
   const rl = await rateLimit(db, "login", keyedHash(`login:${ip}:${email}`), 10, 900);
-  if (!rl.allowed) return { ok: false, error: "Too many attempts. Try again in 15 minutes." };
+  // Per-account limit too, so rotating IPs cannot brute-force one account.
+  const perAccount = await rateLimit(db, "login_account", keyedHash(`login-acct:${email}`), 20, 3600);
+  if (!rl.allowed || !perAccount.allowed) return { ok: false, error: "Too many attempts. Try again later." };
   const [u] = await db.select().from(users).where(eq(users.email, email));
   // Constant-ish work whether or not the user exists.
   const valid = u ? await verifyPassword(password, u.passwordHash) : await verifyPassword(password, "scrypt$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");

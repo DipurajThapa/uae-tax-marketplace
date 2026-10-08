@@ -47,10 +47,13 @@ export type SubmitResult =
 
 export const DEDUPE_WINDOW_DAYS = 7;
 
-export async function getMatches(db: DB, assessment: Assessment, now: Date) {
+export async function getMatches(db: DB, assessment: Assessment, now: Date, limit = 10) {
   const candidates = await loadCandidates(db, assessment.services, now);
-  return matchProviders(candidates, assessment);
+  return matchProviders(candidates, assessment, limit);
 }
+
+/** Max new enquiries one provider can receive per day: limits lead-flooding by competitors. */
+export const PROVIDER_DAILY_ENQUIRY_LIMIT = 20;
 
 export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: string; now: Date }): Promise<SubmitResult> {
   const assessed = validateAssessment(input.answers);
@@ -91,13 +94,18 @@ export async function submitEnquiry(db: DB, input: SubmitInput, ctx: { ip: strin
 
   // Re-run matching on the server: a provider can only be contacted if it is eligible now.
   const assessment = assessed.value;
-  const { matches } = await getMatches(db, assessment, ctx.now);
+  const { matches } = await getMatches(db, assessment, ctx.now, Number.MAX_SAFE_INTEGER);
   const byId = new Map(matches.map((m) => [m.candidateId, m]));
   const chosen: Match[] = [];
   for (const id of selected) {
     const m = byId.get(id);
     if (!m) return { ok: false, code: "ineligible_selection", errors: { providers: "One of the selected providers can no longer receive enquiries. Please review the list." } };
     chosen.push(m);
+  }
+
+  for (const id of selected) {
+    const perProvider = await rateLimit(db, "enquiry_provider", id, PROVIDER_DAILY_ENQUIRY_LIMIT, 86400, ctx.now);
+    if (!perProvider.allowed) return { ok: false, code: "rate_limited" };
   }
 
   const dedupeKey = keyedHash(`dedupe:${email}|${[...assessment.services].sort().join(",")}|${[...selected].sort().join(",")}`);

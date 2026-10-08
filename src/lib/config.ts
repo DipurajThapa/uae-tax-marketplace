@@ -8,8 +8,13 @@ export const config = {
   get siteUrl(): string {
     return (process.env.SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
   },
+  /**
+   * Production unless explicitly marked otherwise. A production build (NODE_ENV=production) is treated
+   * as production unless APP_ENV is "test" or "staging", so a missing variable fails closed (finding M8).
+   */
   get isProduction(): boolean {
-    return process.env.NODE_ENV === "production" && process.env.APP_ENV === "production";
+    if (process.env.NODE_ENV !== "production") return false;
+    return !["test", "staging"].includes(process.env.APP_ENV ?? "");
   },
   /** Crawlers are blocked unless the owner has authorised launch. */
   get allowIndexing(): boolean {
@@ -26,7 +31,9 @@ export const config = {
     if (this.isProduction && s.startsWith("change-me")) throw new Error("APP_SECRET is a placeholder");
     return s;
   },
+  /** The file transport is for dev/test only; production never silently writes mail to disk (finding H5). */
   get mailTransport(): "outbox-file" | "smtp" {
+    if (this.isProduction) return "smtp";
     return process.env.MAIL_TRANSPORT === "smtp" ? "smtp" : "outbox-file";
   },
   get mailFrom(): string {

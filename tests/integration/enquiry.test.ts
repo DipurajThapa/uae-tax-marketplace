@@ -144,6 +144,22 @@ describe("plan capacity and lead accounting", () => {
   });
 });
 
+describe("abuse controls (review H3, M6)", () => {
+  it("the rate limiter is atomic: 20 concurrent calls against a limit of 5 allow exactly 5", async () => {
+    const { rateLimit } = await import("@/lib/ratelimit");
+    const r = await Promise.all(Array.from({ length: 20 }, () => rateLimit(db, "t", "k", 5, 60, now)));
+    expect(r.filter((x) => x.allowed)).toHaveLength(5);
+  });
+
+  it("a provider whose only user is disabled cannot be charged for enquiries", async () => {
+    const o = await makeOrg();
+    await db.update(s.users).set({ disabled: true }).where(eq(s.users.id, o.user!.id));
+    const r = await submitEnquiry(db, input([o.org.id]), ctx());
+    expect(r.ok === false && r.code).toBe("ineligible_selection");
+    expect(await db.select().from(s.leadCharges)).toHaveLength(0);
+  });
+});
+
 describe("capacity under concurrency", () => {
   it("parallel enquiries cannot push a provider past its monthly maximum", async () => {
     const o = await makeOrg({ legalName: "Busy Firm" });

@@ -17,6 +17,7 @@ export interface MailTransport {
 /** Development/test transport: writes each message to var/mail as a file. Nothing leaves the machine. */
 export const fileTransport: MailTransport = {
   async send(mail) {
+    if (config.isProduction) throw new Error("file mail transport is disabled in production");
     const dir = path.join(process.cwd(), "var", "mail");
     await mkdir(dir, { recursive: true });
     const name = `${new Date().toISOString().replace(/[:.]/g, "-")}-${Math.random().toString(36).slice(2, 8)}.txt`;

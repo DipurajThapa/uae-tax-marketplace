@@ -4,7 +4,7 @@ import { getDb, closeDb } from "@/db/client";
 import * as s from "@/db/schema";
 import { userActor } from "@/lib/audit";
 import { submitClaim, approveClaim, rejectClaim, registerProvider, consumePasswordToken, requestPasswordReset } from "@/lib/claims";
-import { verifyCredential, sweepStaleCredentials, openDispute, resolveDispute, approveSubmission, revokeCredential } from "@/lib/verification";
+import { verifyCredential, sweepStaleCredentials, openDispute, resolveDispute, approveSubmission, revokeCredential, freezeForDispute } from "@/lib/verification";
 import { createPromotion } from "@/lib/promotions";
 import { testBillingProvider } from "@/lib/billing";
 import { stageImport, commitImport, ImportBlockedError } from "@/lib/importer";
@@ -150,20 +150,41 @@ describe("scenario 6: disputed or expired verification is updated safely", () =>
     expect(p!.credentials.some((x) => x.status === "verified")).toBe(false);
   });
 
-  it("a dispute freezes a verified credential; rejection restores it, upholding revokes it", async () => {
+  it("an anonymous report does NOT change the badge; a reviewer can freeze, then restore or revoke", async () => {
     const rev = await makeUser("reviewer", "rev@example.invalid");
     const { org } = await makeOrg({ verified: ["FTA_TAX_AGENCY"] });
     const [c] = await db.select().from(s.credentials);
     const d1 = await openDispute(db, { organizationId: org.id, credentialId: c!.id, reporterEmail: "x@y.example", reason: "incorrect_credential", details: "Not on the register" }, ctx());
     expect(d1.ok).toBe(true);
+    expect((await db.select().from(s.credentials))[0]!.status).toBe("verified"); // review finding H2
+    if (!d1.ok) return;
+    await freezeForDispute(db, userActor(rev.id), d1.id, now);
     expect((await db.select().from(s.credentials))[0]!.status).toBe("disputed");
     await expect(verifyCredential(db, userActor(rev.id), c!.id, { method: "official_register", evidenceNote: "re-verify while disputed" })).rejects.toThrow(/dispute/);
-    if (d1.ok) await resolveDispute(db, userActor(rev.id), d1.id, "rejected", "Re-checked: valid", now);
+    await resolveDispute(db, userActor(rev.id), d1.id, "rejected", "Re-checked: valid", now);
     expect((await db.select().from(s.credentials))[0]!.status).toBe("verified");
 
     const d2 = await openDispute(db, { organizationId: org.id, credentialId: c!.id, reporterEmail: "x@y.example", reason: "incorrect_credential", details: "Deregistered last week" }, ctx());
     if (d2.ok) await resolveDispute(db, userActor(rev.id), d2.id, "upheld", "Confirmed deregistered", now);
     expect((await db.select().from(s.credentials))[0]!.status).toBe("revoked");
+  });
+
+  it("reports are rate-limited per target firm, whatever the IP", async () => {
+    const { org } = await makeOrg();
+    const results = [];
+    for (let i = 0; i < 11; i++)
+      results.push(await openDispute(db, { organizationId: org.id, reporterEmail: "x@y.example", reason: "other", details: "spam report number " + i }, { ip: `9.9.9.${i}`, now }));
+    expect(results.filter((r) => r.ok)).toHaveLength(10);
+  });
+
+  it("a verified credential past its re-check date reads as expired immediately, before any sweep (H4)", async () => {
+    await makeUser("reviewer", "rev@example.invalid");
+    const { org } = await makeOrg({ verified: ["FTA_TAX_AGENCY"] });
+    await db.update(s.credentials).set({ recheckDueAt: new Date(Date.now() - 1000) });
+    expect((await db.select().from(s.credentials))[0]!.status).toBe("verified"); // stored value unchanged
+    const p = await getProviderBySlug(db, org.slug);
+    expect(p!.credentials[0]!.status).toBe("expired");
+    expect((await searchProviders(db, { verifiedOnly: true })).total).toBe(0);
   });
 
   it("a dispute cannot target another provider's credential", async () => {

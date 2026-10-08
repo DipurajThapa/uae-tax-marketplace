@@ -8,11 +8,16 @@ import {
   credentials,
   professionals,
   promotions,
+  users,
 } from "@/db/schema";
 import { config } from "./config";
 import { capacityRemaining, effectivePlan } from "./billing";
 import type { Candidate } from "./matching";
 import { CREDENTIAL_BY_CODE } from "./taxonomy";
+import { effectiveStatus, withEffectiveStatus } from "./credential-status";
+
+/** SQL twin of effectiveStatus(): a verified credential that is still fresh. */
+const FRESH_VERIFIED = sql`c.status = 'verified' and c.recheck_due_at > now() and (c.expires_at is null or c.expires_at > now())`;
 
 export type SearchFilters = {
   q?: string;
@@ -62,9 +67,9 @@ export async function searchProviders(db: DB, f: SearchFilters): Promise<{ total
   if (f.jurisdiction)
     conds.push(sql`exists (select 1 from ${organizationJurisdictions} oj where oj.organization_id = ${organizations.id} and oj.jurisdiction_code = ${f.jurisdiction})`);
   if (f.verifiedOnly)
-    conds.push(sql`exists (select 1 from ${credentials} c where c.organization_id = ${organizations.id} and c.status = 'verified')`);
+    conds.push(sql`exists (select 1 from ${credentials} c where c.organization_id = ${organizations.id} and ${FRESH_VERIFIED})`);
   if (f.credential)
-    conds.push(sql`exists (select 1 from ${credentials} c where c.organization_id = ${organizations.id} and c.status = 'verified' and c.credential_type = ${f.credential})`);
+    conds.push(sql`exists (select 1 from ${credentials} c where c.organization_id = ${organizations.id} and ${FRESH_VERIFIED} and c.credential_type = ${f.credential})`);
 
   const where = and(...conds);
   const [{ total } = { total: 0 }] = await db.select({ total: sql<number>`count(*)::int` }).from(organizations).where(where);
@@ -75,7 +80,7 @@ export async function searchProviders(db: DB, f: SearchFilters): Promise<{ total
     .from(organizations)
     .where(where)
     .orderBy(
-      sql`(exists (select 1 from ${credentials} c where c.organization_id = ${organizations.id} and c.status = 'verified')) desc`,
+      sql`(exists (select 1 from ${credentials} c where c.organization_id = ${organizations.id} and ${FRESH_VERIFIED})) desc`,
       asc(organizations.legalName),
     )
     .limit(PAGE_SIZE)
@@ -83,7 +88,7 @@ export async function searchProviders(db: DB, f: SearchFilters): Promise<{ total
   return { total, items: await hydrate(db, rows) };
 }
 
-async function hydrate(db: DB, rows: (typeof organizations.$inferSelect)[]): Promise<ProviderSummary[]> {
+async function hydrate(db: DB, rows: (typeof organizations.$inferSelect)[], now = new Date()): Promise<ProviderSummary[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
   const [svc, creds] = await Promise.all([
@@ -103,7 +108,7 @@ async function hydrate(db: DB, rows: (typeof organizations.$inferSelect)[]): Pro
     services: svc.filter((s) => s.organizationId === r.id).map((s) => s.serviceCode),
     credentials: creds
       .filter((c) => c.organizationId === r.id)
-      .map((c) => ({ type: c.credentialType, status: c.status, registrationNumber: c.registrationNumber, verifiedAt: c.verifiedAt })),
+      .map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), registrationNumber: c.registrationNumber, verifiedAt: c.verifiedAt })),
   }));
 }
 
@@ -115,11 +120,12 @@ export async function getProviderBySlug(db: DB, slug: string, opts: { includeUnp
 }
 
 export async function getProviderById(db: DB, id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
   return org ? getProviderDetail(db, org) : null;
 }
 
-async function getProviderDetail(db: DB, org: typeof organizations.$inferSelect) {
+async function getProviderDetail(db: DB, org: typeof organizations.$inferSelect, now = new Date()) {
   const [svc, juris, inds, creds, people] = await Promise.all([
     db.select().from(organizationServices).where(eq(organizationServices.organizationId, org.id)),
     db.select().from(organizationJurisdictions).where(eq(organizationJurisdictions.organizationId, org.id)),
@@ -136,8 +142,8 @@ async function getProviderDetail(db: DB, org: typeof organizations.$inferSelect)
     services: svc.map((s) => s.serviceCode),
     jurisdictions: juris.map((j) => j.jurisdictionCode),
     industries: inds.map((i) => i.industryCode),
-    credentials: creds,
-    people: people.map((p) => ({ ...p, credentials: personCreds.filter((c) => c.professionalId === p.id) })),
+    credentials: withEffectiveStatus(creds, now),
+    people: people.map((p) => ({ ...p, credentials: withEffectiveStatus(personCreds.filter((c) => c.professionalId === p.id), now) })),
   };
 }
 
@@ -167,6 +173,11 @@ export async function loadCandidates(db: DB, serviceCodes: string[], now: Date):
   ]);
   const personIds = people.map((p) => p.id);
   const personCreds = personIds.length ? await db.select().from(credentials).where(inArray(credentials.professionalId, personIds)) : [];
+  const activeUsers = await db
+    .select({ org: users.organizationId })
+    .from(users)
+    .where(and(inArray(users.organizationId, ids), eq(users.role, "provider"), eq(users.disabled, false)));
+  const activeUserOrgs = new Set(activeUsers.map((u) => u.org));
   return orgs.map((o) => {
     const myPeople = new Set(people.filter((p) => p.org === o.id).map((p) => p.id));
     return {
@@ -176,7 +187,8 @@ export async function loadCandidates(db: DB, serviceCodes: string[], now: Date):
       emirate: o.emirate,
       listingStatus: o.listingStatus,
       acceptingEnquiries: o.acceptingEnquiries,
-      claimed: o.claimState === "claimed",
+      // Claimed AND someone can actually receive the lead (an active provider user).
+      claimed: o.claimState === "claimed" && activeUserOrgs.has(o.id),
       capacityRemaining: cap.get(o.id) ?? 0,
       services: svc.filter((s) => s.organizationId === o.id).map((s) => s.serviceCode),
       jurisdictions: juris.filter((j) => j.organizationId === o.id).map((j) => j.jurisdictionCode),
@@ -184,10 +196,10 @@ export async function loadCandidates(db: DB, serviceCodes: string[], now: Date):
       languages: o.languages,
       sizeBand: o.sizeBand,
       credentials: [
-        ...creds.filter((c) => c.organizationId === o.id).map((c) => ({ type: c.credentialType, status: c.status, holder: "organization" as const })),
+        ...creds.filter((c) => c.organizationId === o.id).map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), holder: "organization" as const })),
         ...personCreds
           .filter((c) => c.professionalId && myPeople.has(c.professionalId))
-          .map((c) => ({ type: c.credentialType, status: c.status, holder: "professional" as const })),
+          .map((c) => ({ type: c.credentialType, status: effectiveStatus(c, now), holder: "professional" as const })),
       ],
     };
   });
@@ -214,7 +226,7 @@ export async function activePromotions(db: DB, p: { placement: string; service?:
   // A promotion only runs while the plan in force still includes promotions.
   const eligible = [];
   for (const r of rows) if ((await effectivePlan(db, r.org.id, p.now)).canPromote) eligible.push(r.org);
-  return hydrate(db, eligible.slice(0, 3));
+  return hydrate(db, eligible.slice(0, 3), p.now);
 }
 
 /** A badge is shown only for verified credentials; anything else is displayed as "not verified". */

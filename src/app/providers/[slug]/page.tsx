@@ -115,10 +115,14 @@ export default async function ProviderPage({ params }: Params) {
                     {c.status === "verified"
                       ? `Issued by ${CREDENTIAL_BY_CODE[c.credentialType]?.issuer}; ${METHOD_LABEL[c.method]}. Next check due ${c.recheckDueAt?.toISOString().slice(0, 10) ?? "n/a"}.`
                       : c.status === "disputed"
-                        ? "Someone reported a problem with this registration. It is hidden until a reviewer resolves it."
+                        ? "A reviewer is investigating a reported problem with this registration. It is not shown as verified until the review ends."
                         : c.status === "expired"
                           ? "Its scheduled re-check is overdue, so it is not shown as verified."
-                          : METHOD_LABEL[c.method] + "."}
+                          : c.status === "pending"
+                            ? "Submitted by the firm; a reviewer has not finished checking it."
+                            : c.status === "revoked"
+                              ? "A reviewer could not confirm this registration. It is not verified."
+                              : "Declared by the firm, not checked. It is not verified."}
                   </p>
                 </li>
               ))}

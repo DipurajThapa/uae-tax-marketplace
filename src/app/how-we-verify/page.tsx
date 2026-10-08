@@ -21,7 +21,7 @@ export default function HowWeVerify() {
         <dt>Check pending</dt><dd>The firm has submitted it and a reviewer has not finished checking it.</dd>
         <dt>Not verified</dt><dd>Declared by the firm and not checked. It earns no badge and does not count for matching.</dd>
         <dt>Re-check due</dt><dd>Registrations are re-checked on a schedule. If a re-check is overdue, the badge is removed until it is done.</dd>
-        <dt>Under review</dt><dd>Someone reported a problem. The badge is hidden until a reviewer resolves it.</dd>
+        <dt>Under review</dt><dd>A reviewer is investigating a reported problem. The badge is hidden until the review ends. Reports alone never remove a badge.</dd>
         <dt>Not confirmed</dt><dd>A reviewer could not confirm the registration, or found it was no longer valid.</dd>
       </dl>
       <h2>Re-check schedule</h2>

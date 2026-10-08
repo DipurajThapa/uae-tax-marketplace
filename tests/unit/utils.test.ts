@@ -73,3 +73,18 @@ describe("validators", () => {
     expect(isUuid("1 or 1=1")).toBe(false);
   });
 });
+
+import { effectiveStatus } from "@/lib/credential-status";
+import { rateLimit } from "@/lib/ratelimit";
+describe("effective credential status", () => {
+  const now = new Date("2026-10-08T00:00:00Z");
+  it("fails closed on missing or past re-check dates and expiry", () => {
+    const later = new Date("2027-01-01");
+    expect(effectiveStatus({ status: "verified", recheckDueAt: later, expiresAt: null }, now)).toBe("verified");
+    expect(effectiveStatus({ status: "verified", recheckDueAt: null, expiresAt: null }, now)).toBe("expired");
+    expect(effectiveStatus({ status: "verified", recheckDueAt: now, expiresAt: null }, now)).toBe("expired");
+    expect(effectiveStatus({ status: "verified", recheckDueAt: later, expiresAt: now }, now)).toBe("expired");
+    expect(effectiveStatus({ status: "pending", recheckDueAt: later, expiresAt: null }, now)).toBe("pending");
+  });
+});
+void rateLimit;

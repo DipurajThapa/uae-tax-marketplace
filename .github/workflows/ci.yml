@@ -15,14 +15,14 @@ jobs:
           POSTGRES_DB: marketplace_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U app" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U app -d marketplace_test" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://app:app@localhost:5432/marketplace_test
       TEST_DATABASE_URL: postgresql://app:app@localhost:5432/marketplace_test
       APP_SECRET: ci-secret-0123456789abcdef0123456789abcdef
       SITE_URL: http://localhost:3000
       ALLOW_INDEXING: "false"
-      ALLOW_SYNTHETIC_DATA: "true"
+      ALLOW_SYNTHETIC_DATA: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,6 +35,7 @@ jobs:
       - run: npm run build
       - name: E2E (Playwright)
         run: |
+          PGPASSWORD=app psql -h localhost -U app -d marketplace_test -c "CREATE DATABASE marketplace_e2e"
           npx playwright install --with-deps chromium
           npm run test:e2e
       - uses: actions/upload-artifact@v4

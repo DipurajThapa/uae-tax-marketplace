@@ -105,18 +105,22 @@ export const disputeSchema = z.object({
   details: z.string().trim().min(10, "Please give some detail").max(2000),
 });
 
-/** Anyone can report an error. A dispute on a verified credential freezes it (no badge) until resolved. */
+/**
+ * Anyone can report an error. Reports go to the review queue and do NOT change the credential:
+ * an anonymous report must not be able to strip a competitor's badge (review finding H2).
+ * A reviewer can freeze the credential while investigating (freezeForDispute).
+ */
 export async function openDispute(db: DB, input: z.input<typeof disputeSchema>, ctx: { ip: string; now: Date }) {
   const d = disputeSchema.parse(input);
   const rl = await rateLimit(db, "dispute_ip", keyedHash(`ip:${ctx.ip}`), 5, 3600, ctx.now);
-  if (!rl.allowed) return { ok: false as const, code: "rate_limited" };
+  const perTarget = await rateLimit(db, "dispute_org", d.organizationId, 10, 86400, ctx.now);
+  if (!rl.allowed || !perTarget.allowed) return { ok: false as const, code: "rate_limited" };
   const id = await db.transaction(async (tx) => {
     let prior: typeof credentials.$inferSelect.status | null = null;
     if (d.credentialId) {
       const [c] = await tx.select().from(credentials).where(and(eq(credentials.id, d.credentialId), eq(credentials.organizationId, d.organizationId))).for("update");
       if (!c) throw new Error("Credential does not belong to this provider");
       prior = c.status;
-      if (c.status === "verified") await tx.update(credentials).set({ status: "disputed", updatedAt: ctx.now }).where(eq(credentials.id, c.id));
     }
     const [row] = await tx
       .insert(disputes)
@@ -134,7 +138,9 @@ export async function resolveDispute(db: DB, actor: Actor, disputeId: string, ou
     if (!d || d.state !== "open") throw new Error("Dispute is not open");
     if (d.credentialId) {
       const [c] = await tx.select().from(credentials).where(eq(credentials.id, d.credentialId));
-      if (c && c.status === "disputed") {
+      if (c && outcome === "upheld" && (c.status === "verified" || c.status === "disputed" || c.status === "expired" || c.status === "pending")) {
+        await tx.update(credentials).set({ status: "revoked", updatedAt: now }).where(eq(credentials.id, c.id));
+      } else if (c && c.status === "disputed") {
         // Upheld → revoked. Rejected → back to the prior status, unless its re-check date passed meanwhile.
         let next: (typeof credentials.$inferSelect)["status"] = outcome === "upheld" ? "revoked" : (d.priorCredentialStatus ?? "unverified");
         if (next === "verified" && c.recheckDueAt && c.recheckDueAt <= now) next = "expired";
@@ -145,6 +151,20 @@ export async function resolveDispute(db: DB, actor: Actor, disputeId: string, ou
       await tx.update(organizations).set({ listingStatus: "suspended", updatedAt: now }).where(eq(organizations.id, d.organizationId));
     await tx.update(disputes).set({ state: outcome, resolvedBy: actor.userId, resolvedAt: now, resolutionNote: note }).where(eq(disputes.id, disputeId));
     await audit(tx, actor, `dispute.${outcome}`, "dispute", disputeId, { note });
+  });
+}
+
+/** Reviewer action: hide a credential's badge while a dispute is investigated. */
+export async function freezeForDispute(db: DB, actor: Actor, disputeId: string, now = new Date()) {
+  if (!actor.userId) throw new Error("A named reviewer is required");
+  await db.transaction(async (tx) => {
+    const [d] = await tx.select().from(disputes).where(eq(disputes.id, disputeId)).for("update");
+    if (!d || d.state !== "open" || !d.credentialId) throw new Error("Open dispute about a credential required");
+    const [c] = await tx.select().from(credentials).where(eq(credentials.id, d.credentialId)).for("update");
+    if (!c || c.status !== "verified") throw new Error("Only a verified credential can be frozen");
+    await tx.update(disputes).set({ priorCredentialStatus: c.status }).where(eq(disputes.id, disputeId));
+    await tx.update(credentials).set({ status: "disputed", updatedAt: now }).where(eq(credentials.id, c.id));
+    await audit(tx, actor, "credential.frozen_for_dispute", "credential", c.id, { disputeId });
   });
 }
 

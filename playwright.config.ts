@@ -13,6 +13,8 @@ const env = {
   ALLOW_INDEXING: "false",
   ALLOW_SYNTHETIC_DATA: "false",
   MAIL_TRANSPORT: "outbox-file",
+  APP_ENV: "test",
+  TRUSTED_PROXY_HOPS: "0",
 };
 
 export default defineConfig({

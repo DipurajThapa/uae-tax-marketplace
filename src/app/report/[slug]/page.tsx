@@ -40,7 +40,7 @@ export default async function Report({ params, searchParams }: { params: Promise
     return (
       <div className="container narrow">
         <h1>Thank you</h1>
-        <p>A reviewer will look at your report. If it concerns a registration, that registration is no longer shown as verified until the review is finished.</p>
+        <p>A reviewer will look at your report and check the registration against its official source.</p>
       </div>
     );
   return (
