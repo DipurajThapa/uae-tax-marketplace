@@ -158,3 +158,41 @@ tr:last-child td { border-bottom: none; }
 .admin-nav { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 24px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .admin-nav a { padding: 6px 10px; border-radius: 6px; text-decoration: none; color: var(--ink-2); font-weight: 500; }
 .admin-nav a:hover { background: var(--brand-soft); }
+
+
+/* ---------- Illustrations and micro-animations (transform/opacity only; off for reduced motion) ---------- */
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 40px; align-items: center; }
+.hero-art { position: relative; max-width: 420px; justify-self: center; width: 100%; }
+.radar-scene { display: block; width: 100%; height: auto; }
+.hero-tag { position: absolute; background: var(--surface); border: 2px solid var(--ink); border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; font-weight: 700; box-shadow: 3px 3px 0 var(--ink); animation: float 4s ease-in-out infinite; }
+.hero-tag-1 { left: -6%; top: 16%; }
+.hero-tag-2 { right: -4%; top: 6%; background: var(--accent-soft); animation-delay: 1.2s; }
+.hero-tag-3 { right: 0; bottom: 12%; animation-delay: 2.1s; }
+@media (max-width: 860px) { .hero-grid { grid-template-columns: minmax(0, 1fr); } .hero-art { max-width: 300px; } }
+.hl-mark { background-image: linear-gradient(color-mix(in srgb, var(--accent) 42%, transparent), color-mix(in srgb, var(--accent) 42%, transparent)); background-repeat: no-repeat; background-position: 0 88%; background-size: 0% 38%; animation: hl-wipe .9s cubic-bezier(.2,.8,.2,1) .3s forwards; }
+.roles { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.roles li { display: flex; align-items: center; gap: 12px; }
+.role-icon, .step-icon { flex: none; }
+.step-icon { display: block; margin-bottom: 8px; }
+.logo-sweep, .radar-sweep { transform-box: view-box; transform-origin: center; animation: spin 5s linear infinite; }
+.radar-sweep-small { animation-duration: 3.5s; }
+.radar-ping { transform-box: fill-box; transform-origin: center; animation: ping 3s ease-out infinite; }
+.radar-ping-b { animation-delay: 1s; } .radar-ping-c { animation-delay: 2s; } .radar-ping-d { animation-delay: 2.6s; }
+.radar-dot { animation: pulse 3s ease-in-out infinite; }
+.lift { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.lift:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(15, 42, 46, 0.12); border-color: var(--brand); }
+.btn { transition: transform .12s ease, filter .12s ease; }
+.btn:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
+.card-link { transition: border-color .15s, transform .18s ease, box-shadow .18s ease; }
+.card-link:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15, 42, 46, 0.1); }
+.steps li { transition: border-color .3s ease, color .3s ease; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes ping { 0% { transform: scale(0.6); opacity: 0; } 15% { opacity: 1; } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes hl-wipe { to { background-size: 100% 38%; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .hl-mark { background-size: 100% 38%; }
+}
