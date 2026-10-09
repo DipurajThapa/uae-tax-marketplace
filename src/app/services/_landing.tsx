@@ -3,6 +3,8 @@ import { getDb } from "@/db/client";
 import { searchProviders, activePromotions } from "@/lib/providers";
 import { SERVICES, SERVICE_BY_CODE, EMIRATES, EMIRATE_BY_CODE, CREDENTIAL_BY_CODE } from "@/lib/taxonomy";
 import { ProviderCard, Empty, JsonLd } from "@/components/ui";
+import { Band, Breadcrumbs, Callout } from "@/components/page";
+import { MoneyRules } from "@/components/money";
 import { config } from "@/lib/config";
 
 /** Shared body for /services/[code], /services/[code]/[emirate] and /locations/[emirate]. */
@@ -22,28 +24,53 @@ export async function Landing({ service, emirate }: { service?: string; emirate?
     itemListElement: res.items.filter((p) => !p.isSynthetic).map((p, i) => ({ "@type": "ListItem", position: i + 1, url: `${config.siteUrl}/providers/${p.slug}`, name: p.name })),
   };
   const matchHref = `/match${service ? `?service=${service}` : ""}`;
+  const crumbs = service
+    ? [{ label: "Services", href: "/services" }, ...(emirate ? [{ label: s?.name ?? service, href: `/services/${service}` }, { label: e?.name ?? emirate }] : [{ label: s?.name ?? service }])]
+    : [{ label: "Locations", href: "/locations" }, { label: e?.name ?? emirate ?? "" }];
+  const required = s?.requiredCredentialTypes ?? [];
+
   return (
     <div className="container">
       <JsonLd data={itemList} />
-      <nav className="small muted" aria-label="Breadcrumb">
-        <Link href={service ? "/services" : "/locations"}>{service ? "Services" : "Locations"}</Link>
-        {service && emirate && <> › <Link href={`/services/${service}`}>{s?.name}</Link></>} › {e && service ? e.name : (s?.name ?? e?.name)}
-      </nav>
-      <h1>{title}</h1>
-      {s && <p className="lead" style={{ maxWidth: 760 }}>{s.description}</p>}
-      {s && s.requiredCredentialTypes.length > 0 && (
-        <div className="alert alert-info" style={{ maxWidth: 760 }}>
-          Only providers with a verified {s.requiredCredentialTypes.map((t) => CREDENTIAL_BY_CODE[t]?.name).join(" or ")} can be matched for this service.
-        </div>
+      <Breadcrumbs items={crumbs} />
+      <header className="page-header">
+        <p className="kicker">{service ? "Service" : "Location"}{e && service ? ` · ${e.name}` : ""}</p>
+        <h1>{title}</h1>
+        {s && <p className="lead">{s.description}</p>}
+      </header>
+      {required.length > 0 && (
+        <Callout>
+          <p>Only providers with a verified {required.map((t) => CREDENTIAL_BY_CODE[t]?.name).join(" or ")} can be matched for this service.</p>
+        </Callout>
       )}
-      <p className="muted">{res.total} listed provider{res.total === 1 ? "" : "s"}. <Link href={matchHref}>Describe your needs to see who fits best</Link>.</p>
+      <div className="page-actions">
+        <Link className="btn btn-accent" href={matchHref}>Describe your needs to see who fits best</Link>
+      </div>
+      <p className="muted mt-2">{res.total} listed provider{res.total === 1 ? "" : "s"}. Free for businesses.</p>
+
+      {service && (
+        <nav className="filter-bar" aria-label="Filter by emirate">
+          <p className="kicker">Filter by emirate</p>
+          <div className="chip-nav">
+            <Link className="chip" href={`/services/${service}`} aria-current={!emirate ? "page" : undefined}>All UAE</Link>
+            {EMIRATES.map((x) => (
+              <Link className="chip" key={x.code} href={`/services/${service}/${x.code}`} aria-current={emirate === x.code ? "page" : undefined}>{x.name}</Link>
+            ))}
+          </div>
+        </nav>
+      )}
 
       {promoted.length > 0 && (
-        <section aria-label="Sponsored listings" className="stack" style={{ marginBottom: 24 }}>
-          <p className="small muted" style={{ margin: 0 }}>Sponsored: paid placement, shown separately. It does not affect ordering or match scores.</p>
-          {promoted.map((p) => <ProviderCard key={`s-${p.id}`} p={p} sponsored />)}
+        <section aria-label="Sponsored listings" className="sponsored-box">
+          <p className="small"><span className="badge badge-sponsored">Sponsored</span> Paid placement, shown separately. It does not affect ordering or match scores.</p>
+          <div className="grid grid-2">{promoted.map((p) => <ProviderCard key={`s-${p.id}`} p={p} sponsored />)}</div>
         </section>
       )}
+
+      <div className="list-head">
+        <h2>Listed providers</h2>
+        <p className="mono muted mb-0">Firms with a verified registration first, then by name</p>
+      </div>
       {res.items.length === 0 ? (
         <Empty title="No providers listed here yet">
           <p><Link href="/providers">Browse all providers</Link> or <Link href="/for-providers">list your firm</Link>.</p>
@@ -52,7 +79,13 @@ export async function Landing({ service, emirate }: { service?: string; emirate?
         <div className="grid grid-2">{res.items.map((p) => <ProviderCard key={p.id} p={p} />)}</div>
       )}
 
-      <section className="grid grid-2" style={{ marginTop: 32 }}>
+      <Band tone="dark" label="How Taxdar makes money">
+        <p className="kicker">Open about money</p>
+        <h2>How Taxdar makes money</h2>
+        <MoneyRules />
+      </Band>
+
+      <section className="grid grid-2 mt-4">
         <div className="card">
           <h2>Questions to ask before you engage a provider</h2>
           <ul>
@@ -65,10 +98,12 @@ export async function Landing({ service, emirate }: { service?: string; emirate?
         <div className="card">
           {service ? (
             <>
-              <h2>{s?.name} by emirate</h2>
-              <div className="chips">{EMIRATES.map((x) => <Link className="chip" key={x.code} href={`/services/${service}/${x.code}`}>{x.name}</Link>)}</div>
-              <h2 style={{ marginTop: 16 }}>Related services</h2>
-              <ul>{SERVICES.filter((x) => x.category === s?.category && x.code !== service).map((x) => <li key={x.code}><Link href={`/services/${x.code}`}>{x.name}</Link></li>)}</ul>
+              <h2>Related services</h2>
+              {SERVICES.some((x) => x.category === s?.category && x.code !== service) ? (
+                <ul>{SERVICES.filter((x) => x.category === s?.category && x.code !== service).map((x) => <li key={x.code}><Link href={`/services/${x.code}`}>{x.name}</Link></li>)}</ul>
+              ) : (
+                <p><Link href="/services">See all services</Link></p>
+              )}
             </>
           ) : (
             <>
