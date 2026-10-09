@@ -54,38 +54,54 @@ export type CardProvider = {
   credentials: { type: string; status: string; registrationNumber: string | null; verifiedAt: Date | null }[];
 };
 
+/** Small geometric mark for a listing. Decorative: it is the same shape for every firm of a kind, not a logo. */
+export function FirmMark({ kind, size = 52 }: { kind: string; size?: number }) {
+  const agency = kind === "tax_agency";
+  return (
+    <svg className="firm-mark" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" fill={agency ? "#0d6e6e" : "#ffe14d"} />
+      <path d="M14 44 L32 14 L50 44 Z" fill={agency ? "#ffe14d" : "#0d6e6e"} stroke="#111" strokeWidth="3" strokeLinejoin="round" />
+      <rect x="14" y="44" width="36" height="8" fill="#111" />
+    </svg>
+  );
+}
+
 export function ProviderCard({ p, sponsored = false, compareHref }: { p: CardProvider; sponsored?: boolean; compareHref?: string }) {
   const verified = p.credentials.filter((c) => c.status === "verified");
   return (
-    <article className="card" aria-labelledby={`p-${p.id}`}>
-      <div className="row between">
-        <h3 id={`p-${p.id}`} style={{ margin: 0 }}>
-          <Link href={`/providers/${p.slug}`}>{p.name}</Link>
-        </h3>
-        <div className="row" style={{ gap: 6 }}>
-          {sponsored && <span className="badge badge-sponsored" title="This placement is paid for. It does not affect match scores.">Sponsored</span>}
-          {p.isSynthetic && <span className="badge badge-neutral">Demo data</span>}
+    <article className="card provider-card lift" aria-labelledby={`p-${p.id}`}>
+      <div className="pc-head">
+        <FirmMark kind={p.kind} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h3 id={`p-${p.id}`}>
+            <Link href={`/providers/${p.slug}`}>{p.name}</Link>
+          </h3>
+          <p className="muted small mb-0">
+            {ORG_KIND_LABELS[p.kind] ?? p.kind} · {p.city ? `${p.city}, ` : ""}{EMIRATE_BY_CODE[p.emirate]?.name ?? p.emirate}
+          </p>
         </div>
+        {(sponsored || p.isSynthetic) && (
+          <div className="row" style={{ gap: 6 }}>
+            {sponsored && <span className="badge badge-sponsored" title="This placement is paid for. It does not affect match scores.">Sponsored</span>}
+            {p.isSynthetic && <span className="badge badge-neutral">Demo data</span>}
+          </div>
+        )}
       </div>
-      <p className="muted small" style={{ margin: "4px 0 10px" }}>
-        {ORG_KIND_LABELS[p.kind] ?? p.kind} · {p.city ? `${p.city}, ` : ""}{EMIRATE_BY_CODE[p.emirate]?.name ?? p.emirate}
-      </p>
-      <div className="stack" style={{ gap: 6 }}>
+      <div className="pc-body stack" style={{ gap: 6 }}>
         {verified.length > 0 ? (
           verified.map((c) => <CredentialLine key={c.type} {...c} />)
         ) : (
           <p className="small muted" style={{ margin: 0 }}>No registration verified yet</p>
         )}
+        <div className="chips" style={{ marginTop: 12 }}>
+          {p.services.slice(0, 5).map((s) => <span className="chip" key={s}>{SERVICE_BY_CODE[s]?.name ?? s}</span>)}
+          {p.services.length > 5 && <span className="chip">+{p.services.length - 5} more</span>}
+        </div>
       </div>
-      <div className="chips" style={{ marginTop: 12 }}>
-        {p.services.slice(0, 5).map((s) => <span className="chip" key={s}>{SERVICE_BY_CODE[s]?.name ?? s}</span>)}
-        {p.services.length > 5 && <span className="chip">+{p.services.length - 5} more</span>}
+      <div className="pc-foot">
+        <Link className="btn btn-sm btn-secondary" href={`/providers/${p.slug}`} aria-describedby={`p-${p.id}`}>View profile</Link>
+        {compareHref && <Link href={compareHref}>Add to comparison</Link>}
       </div>
-      {compareHref && (
-        <p className="small" style={{ marginTop: 12, marginBottom: 0 }}>
-          <Link href={compareHref}>Add to comparison</Link>
-        </p>
-      )}
     </article>
   );
 }
