@@ -30,6 +30,7 @@ try {
         lcp: a["largest-contentful-paint"].numericValue,
         cls: a["cumulative-layout-shift"].numericValue,
         tbt: a["total-blocking-time"].numericValue,
+        bi: r.lhr.environment.benchmarkIndex,
         js: (a["resource-summary"]?.details?.items?.find((x) => x.resourceType === "script")?.transferSize ?? 0) / 1024,
       });
     }
@@ -41,6 +42,7 @@ try {
       tbt_ms: Math.round(median(samples.map((x) => x.tbt))),
       tbt_runs: samples.map((x) => Math.round(x.tbt)).join("/"),
       js_kb: Math.round(median(samples.map((x) => x.js))),
+      cpu_index: Math.round(median(samples.map((x) => x.bi))),
     };
     row.pass = row.lcp_ms < budget.lcp && row.cls < budget.cls && row.tbt_ms < budget.tbt && row.score >= budget.score;
     if (!row.pass) failed = true;
