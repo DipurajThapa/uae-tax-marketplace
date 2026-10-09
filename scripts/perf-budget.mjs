@@ -2,9 +2,10 @@
  * Performance budget (ENG-11). Runs Lighthouse (mobile emulation, simulated throttling) against a
  * running production server and fails if any page misses the budget from BUILD/§11.1-style targets:
  * LCP < 2.5 s, CLS < 0.1, TBT < 200 ms (lab proxy for INP), performance score >= 0.9.
- * Each page runs RUNS times (default 3) and the median of each metric is judged, as Lighthouse
+ * Each page runs RUNS times (default 5) and the median of each metric is judged, as Lighthouse
  * recommends: single lab samples on shared CI runners vary too much (a 217 ms TBT outlier on one run
- * of a page that measures ~75 ms). Thresholds are not relaxed.
+ * of a page that measures ~75 ms; three runs of one commit gave /match 230/219/163). Five samples
+ * make the median robust to two outliers. Thresholds are not relaxed.
  * Usage: BASE_URL=http://localhost:3200 CHROME_PATH=/path/to/chrome node scripts/perf-budget.mjs
  */
 import lighthouse from "lighthouse";
@@ -13,7 +14,7 @@ import * as chromeLauncher from "chrome-launcher";
 const base = process.env.BASE_URL ?? "http://localhost:3200";
 const pages = (process.env.PAGES ?? "/,/providers,/providers/e2e-verified-tax-agency,/match,/services/vat-returns").split(",");
 const budget = { lcp: 2500, cls: 0.1, tbt: 200, score: 0.9 };
-const RUNS = Math.max(1, Number(process.env.RUNS ?? 3));
+const RUNS = Math.max(1, Number(process.env.RUNS ?? 5));
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
 const chrome = await chromeLauncher.launch({ chromePath: process.env.CHROME_PATH, chromeFlags: ["--headless=new", "--no-sandbox", "--disable-gpu"] });

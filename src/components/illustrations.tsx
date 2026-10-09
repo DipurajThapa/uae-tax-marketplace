@@ -8,26 +8,47 @@ const accent = { fill: "var(--accent)" };
 const ink = { fill: "var(--ink)" };
 const paper = { fill: "var(--surface)" };
 
-/** Hero art: a radar scope sweeping a skyline, with blips for matched providers. */
+const BLIPS: [number, number, string][] = [
+  [150, 170, "a"],
+  [330, 150, "b"],
+  [300, 250, "c"],
+  [120, 265, "d"],
+];
+const pct = (v: number) => `${(v / 480) * 100}%`;
+
+/**
+ * Hero art: a radar scope sweeping a skyline, with blips for matched providers.
+ * Built as stacked layers so the moving parts (beam, pings, dots) are HTML elements animated with
+ * transform and opacity only. Those run on the compositor; animating shapes inside an SVG would make
+ * the main thread repaint every frame, which showed up as blocking time on the home page.
+ */
 export function RadarScene() {
   return (
-    <svg className="radar-scene" viewBox="0 0 480 480" aria-hidden="true" focusable="false">
-      <defs>
-        <clipPath id="radar-clip"><circle cx="240" cy="240" r="208" /></clipPath>
-        <linearGradient id="radar-beam" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--accent)" stopOpacity="0" />
-          <stop offset="1" stopColor="var(--accent)" stopOpacity="0.7" />
-        </linearGradient>
-      </defs>
-      <circle cx="240" cy="240" r="224" style={ink} />
-      <circle cx="240" cy="240" r="208" style={brand} />
-      <g clipPath="url(#radar-clip)">
+    <div className="radar" aria-hidden="true">
+      <svg className="radar-layer" viewBox="0 0 480 480" focusable="false">
+        <circle cx="240" cy="240" r="224" style={ink} />
+        <circle cx="240" cy="240" r="208" style={brand} />
         <g fill="none" stroke="#fff" strokeOpacity="0.2" strokeWidth="1.5">
           <circle cx="240" cy="240" r="160" /><circle cx="240" cy="240" r="110" /><circle cx="240" cy="240" r="60" />
-          <line x1="30" y1="240" x2="450" y2="240" /><line x1="240" y1="30" x2="240" y2="450" />
+          <line x1="32" y1="240" x2="448" y2="240" /><line x1="240" y1="32" x2="240" y2="448" />
         </g>
-        <g className="radar-sweep"><path d="M240 240 L240 30 A210 210 0 0 1 421.9 135 Z" fill="url(#radar-beam)" /></g>
-        <g style={ink}>
+      </svg>
+      <div className="radar-beam">
+        <div className="radar-beam-spin">
+          <svg viewBox="32 32 416 416" focusable="false">
+            <defs>
+              <linearGradient id="radar-beam" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="var(--accent)" stopOpacity="0" />
+                <stop offset="1" stopColor="var(--accent)" stopOpacity="0.7" />
+              </linearGradient>
+            </defs>
+            <path d="M240 240 L240 30 A210 210 0 0 1 421.9 135 Z" fill="url(#radar-beam)" />
+          </svg>
+        </div>
+      </div>
+      <svg className="radar-layer" viewBox="0 0 480 480" focusable="false">
+        <defs><clipPath id="radar-clip"><circle cx="240" cy="240" r="208" /></clipPath></defs>
+        <g clipPath="url(#radar-clip)" style={ink}>
           <rect x="40" y="350" width="34" height="110" /><rect x="78" y="322" width="26" height="140" /><rect x="108" y="366" width="40" height="100" />
           <rect x="152" y="300" width="30" height="170" /><rect x="186" y="340" width="24" height="130" />
           <path d="M222 470 L222 300 L230 300 L232 200 L236 120 L240 70 L244 120 L248 200 L250 300 L258 300 L258 470 Z" />
@@ -35,20 +56,15 @@ export function RadarScene() {
           <path d="M330 470 L330 330 Q352 300 374 330 L374 470 Z" />
           <rect x="380" y="356" width="30" height="110" /><rect x="414" y="380" width="40" height="90" />
         </g>
-        {[
-          [150, 170, "a"],
-          [330, 150, "b"],
-          [300, 250, "c"],
-          [120, 265, "d"],
-        ].map(([x, y, k]) => (
-          <g key={k as string}>
-            <circle className={`radar-ping radar-ping-${k}`} cx={x} cy={y} r="12" fill="none" stroke="#fff" strokeWidth="3" />
-            <circle className="radar-dot" cx={x} cy={y} r="5" style={accent} />
-          </g>
-        ))}
-      </g>
-      <circle cx="240" cy="240" r="208" fill="none" stroke="var(--ink)" strokeWidth="6" />
-    </svg>
+        <circle cx="240" cy="240" r="208" fill="none" stroke="var(--ink)" strokeWidth="6" />
+      </svg>
+      {BLIPS.map(([x, y, k]) => (
+        <span key={k} className="radar-blip" style={{ left: pct(x), top: pct(y) }}>
+          <span className={`radar-ping radar-ping-${k}`} />
+          <span className="radar-dot" />
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -101,7 +117,7 @@ export function StepIcon({ step }: { step: 1 | 2 | 3 }) {
         <>
           <circle cx="36" cy="36" r="30" style={brand} stroke="var(--ink)" strokeWidth="3" />
           <circle cx="36" cy="36" r="18" fill="none" stroke="#fff" strokeOpacity="0.6" strokeWidth="2" />
-          <g className="radar-sweep radar-sweep-small"><path d="M36 36 L36 6 A30 30 0 0 1 62 21 Z" fill="#fff" opacity="0.75" /></g>
+          <path d="M36 36 L36 6 A30 30 0 0 1 62 21 Z" fill="#fff" opacity="0.75" />
           <circle cx="48" cy="26" r="4" style={accent} /><circle cx="26" cy="46" r="4" style={accent} />
         </>
       )}

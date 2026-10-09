@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { QUESTIONS, applicableQuestions, type Answers, type Question } from "@/lib/assessment";
+import { QUESTIONS, applicableQuestions, type Answers, type Question } from "@/lib/questions";
 import { MAX_RECIPIENTS } from "@/lib/matching";
 import {
   SERVICES,
