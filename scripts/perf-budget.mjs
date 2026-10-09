@@ -31,6 +31,7 @@ try {
         cls: a["cumulative-layout-shift"].numericValue,
         tbt: a["total-blocking-time"].numericValue,
         bi: r.lhr.environment.benchmarkIndex,
+        longTasks: (a["long-tasks"]?.details?.items ?? []).map((t) => `${Math.round(t.duration)}ms@${Math.round(t.startTime)} ${String(t.url).split("/").pop()}`),
         js: (a["resource-summary"]?.details?.items?.find((x) => x.resourceType === "script")?.transferSize ?? 0) / 1024,
       });
     }
@@ -44,6 +45,8 @@ try {
       js_kb: Math.round(median(samples.map((x) => x.js))),
       cpu_index: Math.round(median(samples.map((x) => x.bi))),
     };
+    const typical = samples.find((x) => Math.round(x.tbt) === row.tbt_ms);
+    console.log(`${path} long tasks (median run): ${typical.longTasks.join(" | ")}`);
     row.pass = row.lcp_ms < budget.lcp && row.cls < budget.cls && row.tbt_ms < budget.tbt && row.score >= budget.score;
     if (!row.pass) failed = true;
     rows.push(row);
