@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import pg from "pg";
 import { nextCode, E2E_TOTP_SECRETS } from "./mfa";
 
 /**
@@ -25,6 +26,18 @@ async function signOut(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+}
+
+/** Reads the newest email-confirmation token queued for an address (mail is not delivered in tests). */
+async function verifyEmailToken(to: string): Promise<string> {
+  const client = new pg.Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://app:app@localhost:5432/marketplace_e2e" });
+  await client.connect();
+  try {
+    const r = await client.query("select payload from notifications where to_address = $1 and template = 'verify_email' order by created_at desc limit 1", [to]);
+    return r.rows[0].payload.setPasswordToken as string;
+  } finally {
+    await client.end();
+  }
 }
 
 async function answerRadio(page: Page, legend: string, option: string) {
@@ -149,6 +162,70 @@ test("4/5. a business claims its listing and an administrator approves it", asyn
   await expect(page.getByText("uma@e2e-unclaimed-firm.example")).toHaveCount(0);
   await page.goto("/providers/e2e-unclaimed-firm");
   await expect(page.getByRole("link", { name: "Start an enquiry" })).toBeVisible();
+});
+
+test("ONB: a new firm lists itself, an admin publishes it, and a business's enquiry reaches the firm", async ({ page }) => {
+  const firm = "E2E Self Listed Advisory LLC";
+  await page.goto("/for-providers/register");
+  await page.getByLabel("Legal name").fill(firm);
+  await page.getByLabel("Type of firm").selectOption("accounting_firm");
+  await page.getByLabel("Emirate of your main office").selectOption("dubai");
+  await page.getByLabel("Public email").fill("hello@e2e-self-listed.example");
+  await page.getByLabel("VAT return preparation", { exact: true }).check();
+  await page.getByLabel("Arabic", { exact: true }).check();
+  await page.getByLabel("Your name").fill("Sam Lister");
+  await page.getByLabel("Your work email").fill("sam@e2e-self-listed.example");
+  await page.getByLabel("Password", { exact: true }).fill("e2e-password-123");
+  await page.getByLabel("Repeat password").fill("e2e-password-123");
+  await page.locator('input[name="consent"]').check();
+  await page.getByRole("button", { name: "Submit listing for review" }).click();
+  await page.waitForURL((u) => u.pathname.startsWith("/provider"));
+  // The owner confirms their email address from the link in the confirmation email.
+  await page.goto(`/verify-email/${await verifyEmailToken("sam@e2e-self-listed.example")}`);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByRole("heading", { name: "Email confirmed" })).toBeVisible();
+  await signOut(page);
+
+  // Not public until a member of staff reviews it.
+  await page.goto("/providers");
+  await expect(page.getByText(firm)).toHaveCount(0);
+
+  await signIn(page, "admin@e2e.invalid");
+  await page.goto("/admin/providers?status=draft");
+  await page.getByRole("link", { name: firm }).click();
+  await page.locator("#listing-note").fill("Trade licence and website checked");
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.waitForURL(/notice=/);
+  await signOut(page);
+
+  // A business looking for VAT help in Dubai now finds the firm and sends it an enquiry.
+  await page.goto("/match");
+  await page.getByLabel("VAT return preparation", { exact: true }).check();
+  await page.getByLabel("Where is the business based?").selectOption("dubai");
+  await page.getByLabel("Arabic", { exact: true }).check();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await answerRadio(page, "Where is the business today?", "Operating for one year or more");
+  await answerRadio(page, "Approximate annual revenue (AED)", "1 to 10 million");
+  await answerRadio(page, "Number of employees", "10–49");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await answerRadio(page, "Is the business registered for VAT?", "Yes");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await answerRadio(page, "When do you need help?", "This month");
+  await page.getByRole("button", { name: "See matching providers" }).click();
+  await page.getByRole("checkbox", { name: firm }).check();
+  await page.getByRole("button", { name: /Continue with 1 selected/ }).click();
+  await page.getByLabel("Your name").fill("Nadia Buyer");
+  await page.getByLabel("Work email").fill("nadia@buyer.example");
+  await page.getByRole("checkbox", { name: new RegExp(firm) }).check();
+  await page.waitForTimeout(3200); // the anti-spam timer rejects forms filled in under 3 seconds
+  await page.getByRole("button", { name: "Send enquiry" }).click();
+  await expect(page.getByRole("heading", { name: "Your enquiry has been sent" })).toBeVisible();
+
+  // The firm sees the enquiry, with the buyer's details, in its own dashboard.
+  await signIn(page, "sam@e2e-self-listed.example");
+  await page.goto("/provider/enquiries");
+  await page.getByRole("link", { name: /ENQ-/ }).first().click();
+  await expect(page.getByText("nadia@buyer.example")).toBeVisible();
 });
 
 test("L4: a GET to /logout does not sign the user out", async ({ page }) => {
