@@ -2,9 +2,10 @@
  * Performance budget (ENG-11). Runs Lighthouse (mobile emulation, simulated throttling) against a
  * running production server and fails if any page misses the budget from BUILD/§11.1-style targets:
  * LCP < 2.5 s, CLS < 0.1, TBT < 200 ms (lab proxy for INP), performance score >= 0.9.
- * Each page runs RUNS times (default 3) and the median of each metric is judged, as Lighthouse
+ * Each page runs RUNS times (default 5) and the median of each metric is judged, as Lighthouse
  * recommends: single lab samples on shared CI runners vary too much (a 217 ms TBT outlier on one run
- * of a page that measures ~75 ms). Thresholds are not relaxed.
+ * of a page that measures ~75 ms; three runs of one commit gave /match 230/219/163). Five samples
+ * make the median robust to two outliers. Thresholds are not relaxed.
  * Usage: BASE_URL=http://localhost:3200 CHROME_PATH=/path/to/chrome node scripts/perf-budget.mjs
  */
 import lighthouse from "lighthouse";
@@ -13,8 +14,10 @@ import * as chromeLauncher from "chrome-launcher";
 const base = process.env.BASE_URL ?? "http://localhost:3200";
 const pages = (process.env.PAGES ?? "/,/providers,/providers/e2e-verified-tax-agency,/match,/services/vat-returns").split(",");
 const budget = { lcp: 2500, cls: 0.1, tbt: 200, score: 0.9 };
-const RUNS = Math.max(1, Number(process.env.RUNS ?? 3));
+const RUNS = Math.max(1, Number(process.env.RUNS ?? 5));
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+const shortUrl = (u) => (u && u.startsWith("http") ? new URL(u).pathname.split("/").pop() || "document" : u || "?");
+const diagnostics = [];
 
 const chrome = await chromeLauncher.launch({ chromePath: process.env.CHROME_PATH, chromeFlags: ["--headless=new", "--no-sandbox", "--disable-gpu"] });
 const rows = [];
@@ -31,6 +34,9 @@ try {
         cls: a["cumulative-layout-shift"].numericValue,
         tbt: a["total-blocking-time"].numericValue,
         js: (a["resource-summary"]?.details?.items?.find((x) => x.resourceType === "script")?.transferSize ?? 0) / 1024,
+        // Diagnostics for the run, so a CI log shows what fills the blocking time.
+        longTasks: (a["long-tasks"]?.details?.items ?? []).map((t) => `${shortUrl(t.url)}@${Math.round(t.startTime)}:${Math.round(t.duration)}`),
+        bootup: (a["bootup-time"]?.details?.items ?? []).slice(0, 4).map((t) => `${shortUrl(t.url)} ${Math.round(t.total)}ms (script ${Math.round(t.scripting)})`),
       });
     }
     const row = {
@@ -42,6 +48,8 @@ try {
       tbt_runs: samples.map((x) => Math.round(x.tbt)).join("/"),
       js_kb: Math.round(median(samples.map((x) => x.js))),
     };
+    const typical = samples.find((x) => Math.round(x.tbt) === row.tbt_ms) ?? samples[0];
+    diagnostics.push(`${path}\n  long tasks: ${typical.longTasks.join(" ") || "none"}\n  CPU by script: ${typical.bootup.join("; ")}`);
     row.pass = row.lcp_ms < budget.lcp && row.cls < budget.cls && row.tbt_ms < budget.tbt && row.score >= budget.score;
     if (!row.pass) failed = true;
     rows.push(row);
@@ -50,6 +58,7 @@ try {
   await chrome.kill();
 }
 console.table(rows);
+console.log("Median run per page (long tasks as file@start:duration ms):\n" + diagnostics.join("\n"));
 if (failed) {
   console.error(`Performance budget missed (LCP < ${budget.lcp} ms, CLS < ${budget.cls}, TBT < ${budget.tbt} ms, score >= ${budget.score}).`);
   process.exit(1);

@@ -65,7 +65,8 @@ p { margin: 0 0 1em; }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; flex-wrap: wrap; }
 .logo { font-family: var(--font-display); font-weight: 900; text-transform: uppercase; color: var(--ink); text-decoration: none; letter-spacing: -0.01em; font-size: 1.6rem; display: flex; align-items: center; gap: 10px; }
 .logo:hover { color: var(--ink); }
-.logo-mark { flex: none; display: inline-block; }
+.logo-mark { flex: none; display: inline-block; position: relative; }
+.logo-mark > svg, .logo-spin, .logo-spin > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .nav { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
 .nav a, .nav-button { padding: 8px 12px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 0.95rem; }
 .nav a:hover, .nav-button:hover { background: var(--accent); color: #111; }
@@ -198,22 +199,32 @@ tbody tr:hover td { background: var(--accent-soft); }
 /* ---------- Illustrations and micro-animations (transform/opacity only; off for reduced motion) ---------- */
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 40px; align-items: center; }
 .hero-art { position: relative; max-width: 420px; justify-self: center; width: 100%; }
-.radar-scene { display: block; width: 100%; height: auto; }
+.radar { position: relative; width: 100%; aspect-ratio: 1; }
+.radar-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.radar-beam { position: absolute; left: 6.667%; top: 6.667%; width: 86.667%; height: 86.667%; border-radius: 50%; overflow: hidden; }
+.radar-beam-spin, .radar-beam-spin > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.radar-blip { position: absolute; width: 5%; height: 5%; transform: translate(-50%, -50%); }
+.radar-ping, .radar-dot { position: absolute; border-radius: 50%; }
+.radar-ping { inset: 0; border: 3px solid #fff; }
+.radar-dot { left: 29%; top: 29%; width: 42%; height: 42%; background: var(--accent); }
 .hero-tag { position: absolute; background: var(--surface); border: 2px solid var(--ink); border-radius: 0; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px; font-size: 0.8rem; font-weight: 700; box-shadow: 3px 3px 0 var(--ink); animation: float 4s ease-in-out infinite; }
 .hero-tag-1 { left: -6%; top: 16%; }
 .hero-tag-2 { right: -4%; top: 6%; background: var(--accent); color: #111; animation-delay: 1.2s; }
 .hero-tag-3 { right: 0; bottom: 12%; animation-delay: 2.1s; }
 @media (max-width: 860px) { .hero-grid { grid-template-columns: minmax(0, 1fr); } .hero-art { max-width: 300px; } }
-.hl-mark { background-image: linear-gradient(var(--hl-bg), var(--hl-bg)); background-repeat: no-repeat; background-position: 0 88%; background-size: 0% 40%; animation: hl-wipe .9s cubic-bezier(.2,.8,.2,1) .3s forwards; }
+/* Highlighter: a separate layer grown with transform, so the wipe runs on the compositor instead of
+   repainting the headline every frame. inline-block keeps the marked phrase on one line. */
+.hl-mark { display: inline-block; position: relative; isolation: isolate; }
+.hl-mark::before { content: ""; position: absolute; left: -0.04em; right: -0.04em; bottom: 0.04em; height: 40%; background: var(--hl-bg); z-index: -1; transform-origin: left center; transform: scaleX(0); will-change: transform; animation: hl-wipe .9s cubic-bezier(.2,.8,.2,1) .3s forwards; }
 .roles { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
 .roles li { display: flex; align-items: center; gap: 12px; }
 .role-icon, .step-icon { flex: none; }
 .step-icon { display: block; margin-bottom: 8px; }
-.logo-sweep, .radar-sweep { transform-box: view-box; transform-origin: center; animation: spin 5s linear infinite; }
-.radar-sweep-small { animation-duration: 3.5s; }
-.radar-ping { transform-box: fill-box; transform-origin: center; animation: ping 3s ease-out infinite; }
+/* Moving parts are HTML layers animated with transform/opacity only, so they run on the compositor. */
+.logo-spin, .radar-beam-spin { will-change: transform; animation: spin 5s linear infinite; }
+.radar-ping { will-change: transform, opacity; animation: ping 3s ease-out infinite; }
 .radar-ping-b { animation-delay: 1s; } .radar-ping-c { animation-delay: 2s; } .radar-ping-d { animation-delay: 2.6s; }
-.radar-dot { animation: pulse 3s ease-in-out infinite; }
+.radar-dot { will-change: opacity; animation: pulse 3s ease-in-out infinite; }
 .lift { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .lift:hover { transform: translate(-4px, -4px); box-shadow: var(--hard); }
 .card-link { transition: border-color .15s, transform .18s ease, box-shadow .18s ease; }
@@ -223,11 +234,11 @@ tbody tr:hover td { background: var(--accent-soft); }
 @keyframes ping { 0% { transform: scale(0.6); opacity: 0; } 15% { opacity: 1; } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.4); opacity: 0; } }
 @keyframes pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes hl-wipe { to { background-size: 100% 40%; } }
+@keyframes hl-wipe { to { transform: scaleX(1); } }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .hl-mark { background-size: 100% 40%; }
+  .hl-mark::before { transform: none; }
 }
 
 /* Row headers inside tables read as body text, not as the inverted column header. */
